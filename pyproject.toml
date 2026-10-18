@@ -1,0 +1,9 @@
+[project]
+name = "comfyui-remoteworker"
+version = "0.1.0"
+description = "Remote conditioning, latent and prompt adapters for ComfyUI runtimes"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.comfy]
+DisplayName = "RemoteWorker"

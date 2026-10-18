@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+# Local captures are not runtime source.
+scratch_*.json
+
+# Machine-local overrides and runtime data
+*.local.json
+remote-prompt-enhancer-profiles.json
+.env
+.env.*

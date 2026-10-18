@@ -1,0 +1,30 @@
+{
+  "clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "__REMOTE_CONDITIONING_CLIP_NAME__",
+      "type": "__REMOTE_CONDITIONING_CLIP_TYPE__",
+      "device": "__REMOTE_CONDITIONING_CLIP_DEVICE__"
+    }
+  },
+  "encode": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {"clip": ["clip", 0], "text": "__REMOTE_CONDITIONING_TEXT__"}
+  },
+  "save": {
+    "class_type": "SaveConditioning",
+    "inputs": {
+      "conditioning": ["encode", 0],
+      "filename_prefix": "remote-conditioning/__REMOTE_CONDITIONING_REQUEST_ID__/cond"
+    }
+  },
+  "cleanup": {
+    "class_type": "VRAMCleanup",
+    "inputs": {
+      "anything": ["save", 0],
+      "offload_model": true,
+      "offload_cache": true,
+      "reset_execution_cache": false
+    }
+  }
+}
