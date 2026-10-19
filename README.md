@@ -4,7 +4,7 @@ English · [한국어](README.ko.md)
 
 ComfyUI custom nodes for transferring conditioning between runtimes and delegating encoding or prompt generation to another ComfyUI instance.
 
-The peer runs the encoder or prompt model. The calling runtime receives conditioning, latent data, or text and continues its own workflow. Sampling and final image/video decoding stay on the calling runtime.
+The peer runs the encoder or prompt model. The calling runtime receives conditioning, latent data, or text and continues its own workflow. Sampling stays on the calling runtime. Optional Remote VAE Decode nodes send sampled latents back to a peer for final image/video or audio decoding.
 
 ## Nodes
 
@@ -23,6 +23,8 @@ flowchart TB
 | Remote MiniMax H3 Image to Video | Encode text and optional first/last frames; return `CONDITIONING` and `LATENT`. |
 | Remote Prompt Enhancer | Generate a prompt using a peer-managed profile and optional image/video references; return `STRING`. |
 | Remote Qwen Image 2.1 | Run text, reference-image, and VAE encoding on a peer; return positive conditioning, negative conditioning, and latent data. |
+| Remote VAE Decode / Audio | Decode sampled latents on a peer; lossless CPU IMAGE/AUDIO return. |
+| Remote VAE Warmup | Queue a tiny dummy decode; return a completion ticket and unchanged passthrough input. |
 | Remote VAE Selector | Select a VAE name for connected remote nodes. |
 
 The package also registers artifact-saving nodes and an internal Qwen worker used by remote workflows.

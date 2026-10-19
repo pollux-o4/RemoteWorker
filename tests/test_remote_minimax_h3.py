@@ -154,7 +154,7 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
 
             def wait_for_history(self, _prompt_id):
                 return {"prompt-1": {"status": {"status_str": "success"}, "outputs": {
-                    "save": {"text": ["remote-conditioning/request-1/cond_00001_.cond"]},
+                    "save": {"conditioning": ["remote-conditioning/request-1/cond_00001_.cond"]},
                     "save_latent": {"latents": ["remote-conditioning/request-1/latent_00001_.latent"]},
                 }}}
 

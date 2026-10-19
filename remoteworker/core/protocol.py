@@ -125,11 +125,11 @@ def validate_cleanup_capability(node_info: dict[str, Any]) -> None:
     if not isinstance(required, dict) or not isinstance(optional, dict):
         raise RuntimeError("Remote Conditioning VRAMCleanup capability has malformed inputs")
     cleanup_inputs = set(required) | set(optional)
-    expected_inputs = {"offload_model", "offload_cache", "reset_execution_cache"}
+    expected_inputs = {"offload_model", "offload_cache"}
     if not expected_inputs.issubset(cleanup_inputs) or "anything" not in optional:
         raise RuntimeError(
             "Remote Conditioning release_after_result requires VRAMCleanup inputs "
-            "offload_model, offload_cache, reset_execution_cache, and optional anything"
+            "offload_model, offload_cache, and optional anything"
         )
 
 

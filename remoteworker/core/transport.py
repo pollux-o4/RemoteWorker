@@ -83,6 +83,8 @@ class HttpComfyApi:
         return result
 
     def submit(self, workflow: dict[str, Any]) -> str:
+        from .cancellation import check_cancelled
+        check_cancelled()
         response = self._json("/prompt", payload={"prompt": workflow, "client_id": uuid.uuid4().hex})
         prompt_id = response.get("prompt_id")
         if not isinstance(prompt_id, str) or not prompt_id:
@@ -194,6 +196,8 @@ class HttpComfyApi:
     def wait_for_history(self, prompt_id: str) -> dict[str, Any]:
         deadline = time.monotonic() + self._timeout_seconds
         while time.monotonic() < deadline:
+            from .cancellation import check_cancelled
+            check_cancelled()
             _raise_if_caller_interrupted()
             history = self._json(f"/history/{prompt_id}")
             entry = history.get(prompt_id)
@@ -203,6 +207,12 @@ class HttpComfyApi:
             time.sleep(_POLL_INTERVAL_SECONDS)
         raise TimeoutError(f"Remote Conditioning timed out after {self._timeout_seconds}s (prompt {prompt_id})")
 
+    def discard_vae_outputs(self, request_id: str) -> bool:
+        response = self._json("/remote-vae/discard-output", payload={"request_id": request_id})
+        if set(response) != {"removed"} or not isinstance(response["removed"], bool):
+            raise RuntimeError("Remote VAE discard-output returned an invalid response")
+        return response["removed"]
+
     def download_artifact(self, artifact: str) -> bytes:
         subfolder, filename = artifact.rsplit("/", 1)
         return self._request(f"/view?{urlencode({'filename': filename, 'subfolder': subfolder, 'type': 'output'})}")
@@ -210,6 +220,9 @@ class HttpComfyApi:
 
 def _raise_if_caller_interrupted() -> None:
     """Use ComfyUI's cancellation signal when running inside its executor."""
+    from .cancellation import caller_interrupt_enabled
+    if not caller_interrupt_enabled():
+        return
     try:
         from comfy import model_management
     except ImportError:

@@ -115,15 +115,16 @@ export async function readError(response) {
 
 export async function refreshRemoteChoiceOptions(node, button, config) {
     if (button[config.loadingKey]) return;
+    const setLabel = config.setLabel || ((label) => { button.name = label; });
     const serverWidget = node.widgets?.find((widget) => widget.name === "server_url");
     const timeoutWidget = node.widgets?.find((widget) => widget.name === "timeout_seconds");
     if (!serverWidget || !timeoutWidget) {
-        button.name = config.missingSettingsLabel;
+        setLabel(config.missingSettingsLabel);
         return;
     }
 
     button[config.loadingKey] = true;
-    button.name = config.loadingLabel;
+    setLabel(config.loadingLabel);
     app.graph?.setDirtyCanvas?.(true, true);
     try {
         const lookupTimeout = Math.min(30, Math.max(5, Number(timeoutWidget.value) || 5));
@@ -141,14 +142,14 @@ export async function refreshRemoteChoiceOptions(node, button, config) {
         }
         const payload = await response.json();
         if (serverWidget.value !== requestedServerUrl) {
-            button.name = config.serverChangedLabel;
+            setLabel(config.serverChangedLabel);
             return;
         }
         const count = config.apply(node, payload);
-        button.name = config.successLabel(count);
+        setLabel(config.successLabel(count));
     } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        button.name = config.failureLabel(detail);
+        setLabel(config.failureLabel(detail));
         console.warn(config.warningPrefix, error);
     } finally {
         button[config.loadingKey] = false;

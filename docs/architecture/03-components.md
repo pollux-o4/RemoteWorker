@@ -31,10 +31,10 @@ flowchart TB
     subgraph Peer[peer Python 프로세스]
         direction TB
         Host[Comfy 그래프 실행기]
-        Workers[인코딩·생성 worker]
-        IO[conditioning·latent·텍스트 저장기]
+        Workers[인코딩·생성·VAE worker]
+        IO[conditioning·latent·텍스트·VAE 결과 저장기]
         Registry[프로필 저장소·CRUD 라우트]
-        Cleanup[요청 입력 정리 라우트]
+        Cleanup[요청 입력·VAE 전송 결과 정리 라우트]
         Host --> Workers --> IO
         PeerDefaults[로컬 기본값 로더]
         Registry --> PeerDefaults
@@ -60,3 +60,10 @@ flowchart TB
 | 조회·정리 라우트 | `remoteworker/integration/discovery_routes.py` |
 | 프로필 저장·프록시 | `remoteworker/prompt/profiles.py`, `remoteworker/prompt/transport.py`, `remoteworker/integration/profile_routes.py` |
 | artifact IO | `remoteworker/integration/artifact_io.py` |
+| 원격 VAE·웜업 | `remoteworker/vae/service.py`, `worker.py`, `warmup.py`, `codec.py` |
+| VAE 전송 결과 정리 | `remoteworker/vae/routes.py` |
+
+## 자동 준비
+
+- [입력 해석·큐 스케줄링·일회 handoff·웜업 코드](05-preparation.md)
+- 실측 admission·VAE 준비 보호·요청별 취소·일회 전달

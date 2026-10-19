@@ -1,3 +1,5 @@
+import {restorePolicyDefaults} from './remote_policy_defaults.js';
+import {discoverMiniMaxModelDefinitions, applyMiniMaxModelDefinitions} from './remote_model_definitions.js';
 import { app } from "../../scripts/app.js";
 import { fetchJson, refreshRemoteOptions, refreshRemoteVaeOptions } from "./remote_choices.js";
 import { applyPromptProfiles, applyPromptProfilesToVueDefs, refreshPromptProfiles, updateProfileDescription, removeObsoletePromptManagerInput, setupPromptProfileManagerShortcut } from "./remote_profiles.js";
@@ -10,6 +12,7 @@ let startupPromptProfiles = null;
 app.registerExtension({
     name: "RemoteConditioning.ClipLoaderOptions",
     async addCustomNodeDefs(definitions) {
+        await discoverMiniMaxModelDefinitions(definitions);
         // Custom-node modules can load after `init` has already run.  This
         // hook is awaited while Comfy has the backend definitions in hand and
         // before either renderer registers them, so it is the reliable place
@@ -27,6 +30,7 @@ app.registerExtension({
         }
     },
     beforeRegisterVueAppNodeDefs(definitions) {
+        applyMiniMaxModelDefinitions(definitions);
         if (!startupPromptProfiles) return;
         try {
             applyPromptProfilesToVueDefs(definitions, startupPromptProfiles);
@@ -128,7 +132,11 @@ app.registerExtension({
         };
         nodeType.prototype.onConfigure = function () {
             const result = onConfigure?.apply(this, arguments);
-            if (isMiniMax) normalizeMiniMaxVaeInputs(this);
+            if (isMiniMax) {
+                normalizeMiniMaxVaeInputs(this);
+                restorePolicyDefaults(this);
+                queueMicrotask(() => restorePolicyDefaults(this));
+            }
             if (nodeData.name === "RemoteMiniMaxH3ReferenceEncode") queueMicrotask(() => {
                 normalizeMiniMaxVaeInputs(this);
                 syncMiniMaxReferenceInputs(this);

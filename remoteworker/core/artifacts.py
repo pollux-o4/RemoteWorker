@@ -13,6 +13,7 @@ class RemoteArtifactSpec(NamedTuple):
     extension: str
 
 
+REMOTE_CONDITIONING_ARTIFACT = RemoteArtifactSpec("conditioning", "save", "conditioning", ".cond")
 CONDITIONING_ARTIFACT = RemoteArtifactSpec("conditioning", "save", "text", ".cond")
 PROMPT_ARTIFACT = RemoteArtifactSpec("prompt", "save", "text", ".txt")
 

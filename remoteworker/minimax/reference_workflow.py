@@ -57,7 +57,7 @@ def build_workflow(
         "vae": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
         "audio_vae": {"class_type": "VAELoader", "inputs": {"vae_name": audio_vae_name}},
         "encode": {"class_type": "MiniMaxH3ReferenceToVideo", "inputs": {"clip": ["clip", 0], "vae": ["vae", 0], "audio_vae": ["audio_vae", 0], "prompt": prompt, "width": width, "height": height, "length": length, "ref_image_size": ref_image_size}},
-        "save": {"class_type": "SaveConditioning", "inputs": {"conditioning": ["encode", 0], "filename_prefix": f"remote-conditioning/{request_id}/cond"}},
+        "save": {"class_type": "SaveRemoteConditioning", "inputs": {"conditioning": ["encode", 0], "filename_prefix": f"remote-conditioning/{request_id}/cond"}},
         "save_latent": {"class_type": "SaveRemoteLatent", "inputs": {"samples": ["encode", 1], "filename_prefix": f"remote-conditioning/{request_id}/latent"}},
     }
     for index, ref in enumerate(image_refs):

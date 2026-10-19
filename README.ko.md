@@ -4,7 +4,7 @@
 
 ComfyUI 런타임 사이에서 conditioning을 전달하고, 다른 ComfyUI 인스턴스에 인코딩이나 프롬프트 생성을 맡기는 커스텀 노드 모음입니다.
 
-원격 런타임(peer)이 인코더나 프롬프트 모델을 실행합니다. 호출 측은 conditioning, latent 데이터 또는 텍스트를 받아 자신의 워크플로를 이어서 실행합니다. 샘플링과 최종 이미지·영상 디코딩은 호출 측에서 수행합니다.
+원격 런타임(peer)이 인코더나 프롬프트 모델을 실행합니다. 호출 측은 conditioning, latent 데이터 또는 텍스트를 받아 자신의 워크플로를 이어서 실행합니다. 샘플링은 호출 측 담당. 선택적 원격 VAE 디코딩으로 샘플링 latent를 peer에 전달, IMAGE·AUDIO 반환.
 
 ## 노드
 
@@ -23,6 +23,8 @@ flowchart TB
 | Remote MiniMax H3 Image to Video | 텍스트와 선택적 첫·마지막 프레임을 인코딩하고 `CONDITIONING`, `LATENT`를 반환합니다. |
 | Remote Prompt Enhancer | 원격에서 관리하는 프로필과 선택적 이미지·영상 참조로 프롬프트를 생성하고 `STRING`을 반환합니다. |
 | Remote Qwen Image 2.1 | 원격 텍스트·참조 이미지·VAE 인코딩을 실행하고 positive conditioning, negative conditioning, latent 데이터를 반환합니다. |
+| Remote VAE Decode / Audio | peer 디코딩, CPU IMAGE·AUDIO 무손실 반환 |
+| Remote VAE Warmup | 최소 더미 디코딩 예약, 완료 ticket·입력 passthrough 반환 |
 | Remote VAE Selector | 연결된 원격 노드에서 사용할 VAE 이름을 선택합니다. |
 
 원격 워크플로에 사용하는 artifact 저장 노드와 내부 Qwen worker도 함께 등록합니다.
@@ -80,3 +82,13 @@ Qwen V3 네이티브 스키마 검사는 `PYTHONPATH`에 ComfyUI가 있어야 �
 ```sh
 REMOTEWORKER_CONFIG="" PYTHONPATH=/path/to/ComfyUI:. python -m unittest discover -s tests -p test_remote_qwen_image21.py -q
 ```
+
+
+## 자동 준비
+
+- 다음 선두 작업의 원격 conditioning 1개 lookahead · 지원 CPU 연결 입력·`always_refresh` 일회 전달
+- 샘플링 2 step 이하에서 VAE 웜업 · 다음 conditioning 미준비 시 VAE보다 CLIP 우선
+- 준비 신호 미연결 상태 기본 지원 · 수동 준비 신호는 명시적 순서 지정용
+- [실행 정책·큐·취소·메모리·코드 책임](docs/architecture/05-preparation.md)
+- 상태 확인: 사이드바 자동 준비 → 자동 준비 상태
+- 자동 준비 제외: `REMOTEWORKER_AUTOPREPARE=0`

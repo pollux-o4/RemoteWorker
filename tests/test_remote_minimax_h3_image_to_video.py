@@ -73,6 +73,8 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
         self.assertEqual("MiniMaxH3ImageToVideo", workflow["encode"]["class_type"])
         self.assertEqual(["first_frame_loader", 0], inputs["first_frame"])
         self.assertEqual(["last_frame_loader", 0], inputs["last_frame"])
+        self.assertEqual("SaveRemoteConditioning", workflow["save"]["class_type"])
+        self.assertEqual("conditioning", remote_i2v.CONDITIONING_ARTIFACT.ui_field)
         self.assertEqual("SaveRemoteLatent", workflow["save_latent"]["class_type"])
         self.assertEqual(["save", 0], workflow["save_latent"]["inputs"]["dependency"])
         self.assertEqual("VRAMCleanup", workflow["cleanup"]["class_type"])
@@ -122,7 +124,7 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
 
             def wait_for_history(self, _prompt_id):
                 return {"prompt-1": {"status": {"status_str": "success"}, "outputs": {
-                    "save": {"text": ["remote-conditioning/request-1/cond_00001_.cond"]},
+                    "save": {"conditioning": ["remote-conditioning/request-1/cond_00001_.cond"]},
                     "save_latent": {"latents": ["remote-conditioning/request-1/latent_00001_.latent"]},
                 }}}
 

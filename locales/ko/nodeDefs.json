@@ -1,0 +1,139 @@
+{
+  "RemoteVAEDecode": {
+    "display_name": "원격 VAE 디코딩 · 이미지/영상",
+    "inputs": {
+      "vae_name": {
+        "name": "VAE 모델",
+        "tooltip": "처리 서버의 모델 목록에서 선택. 현재 서버에는 VAE를 적재하지 않음"
+      },
+      "server_url": {
+        "name": "처리 서버",
+        "tooltip": "VAE를 실행할 다른 ComfyUI 서버 주소"
+      },
+      "timeout_seconds": {
+        "name": "대기 제한(초)",
+        "tooltip": "개별 원격 요청의 최대 대기 시간"
+      },
+      "samples": {
+        "name": "샘플링 결과",
+        "tooltip": "H3의 영상·오디오 결합 latent 입력 가능"
+      },
+      "memory_policy": {
+        "name": "디코딩 후 메모리",
+        "tooltip": "결과 저장 뒤 처리 서버의 모델 해제 또는 다음 디코딩까지 유지",
+        "options": {
+          "release_after_result": "모델 해제",
+          "keep": "모델 유지"
+        }
+      },
+      "warmup": {
+        "name": "수동 준비 신호",
+        "tooltip": "동일한 서버·VAE·대상의 미리 준비 노드 출력 연결. 생략 가능"
+      },
+      "tiled": {
+        "name": "타일 디코딩",
+        "tooltip": "타일 크기는 고급 설정에서 조절. H3 영상 VAE는 자체 타일 처리 지원"
+      },
+      "tile_size": {
+        "name": "타일 크기"
+      },
+      "overlap": {
+        "name": "공간 겹침"
+      },
+      "temporal_size": {
+        "name": "시간 타일 크기"
+      },
+      "temporal_overlap": {
+        "name": "시간 겹침"
+      }
+    },
+    "description": "다른 ComfyUI 서버에서 이미지·영상 디코딩. 결과 무손실 반환, 전송 한도 512MiB",
+    "outputs": {
+      "0": {
+        "name": "이미지·영상"
+      }
+    }
+  },
+  "RemoteVAEDecodeAudio": {
+    "display_name": "원격 VAE 디코딩 · 오디오",
+    "inputs": {
+      "vae_name": {
+        "name": "VAE 모델",
+        "tooltip": "처리 서버의 모델 목록에서 선택. 현재 서버에는 VAE를 적재하지 않음"
+      },
+      "server_url": {
+        "name": "처리 서버",
+        "tooltip": "VAE를 실행할 다른 ComfyUI 서버 주소"
+      },
+      "timeout_seconds": {
+        "name": "대기 제한(초)",
+        "tooltip": "개별 원격 요청의 최대 대기 시간"
+      },
+      "samples": {
+        "name": "샘플링 결과",
+        "tooltip": "H3의 영상·오디오 결합 latent 입력 가능"
+      },
+      "memory_policy": {
+        "name": "디코딩 후 메모리",
+        "tooltip": "결과 저장 뒤 처리 서버의 모델 해제 또는 다음 디코딩까지 유지",
+        "options": {
+          "release_after_result": "모델 해제",
+          "keep": "모델 유지"
+        }
+      },
+      "warmup": {
+        "name": "수동 준비 신호",
+        "tooltip": "동일한 서버·VAE·대상의 미리 준비 노드 출력 연결. 생략 가능"
+      }
+    },
+    "description": "다른 ComfyUI 서버에서 오디오 디코딩. 네이티브 파형·샘플레이트 유지",
+    "outputs": {
+      "0": {
+        "name": "오디오"
+      }
+    }
+  },
+  "RemoteVAEWarmup": {
+    "display_name": "원격 VAE 미리 준비",
+    "inputs": {
+      "vae_name": {
+        "name": "VAE 모델",
+        "tooltip": "처리 서버의 모델 목록에서 선택. 현재 서버에는 VAE를 적재하지 않음"
+      },
+      "server_url": {
+        "name": "처리 서버",
+        "tooltip": "VAE를 실행할 다른 ComfyUI 서버 주소"
+      },
+      "timeout_seconds": {
+        "name": "대기 제한(초)",
+        "tooltip": "개별 원격 요청의 최대 대기 시간"
+      },
+      "kind": {
+        "name": "대상",
+        "options": {
+          "image": "이미지·영상",
+          "audio": "오디오"
+        }
+      },
+      "background": {
+        "name": "샘플링과 병행",
+        "tooltip": "준비 요청 후 즉시 다음 단계 진행. 디코딩 직전에 준비 완료 확인"
+      },
+      "after": {
+        "name": "선행 데이터",
+        "tooltip": "인코딩·cleanup 다음의 conditioning 입력. 전달 데이터를 sampler에 연결하면 샘플링 전에 준비 요청 실행"
+      }
+    },
+    "description": "최소 더미 디코딩으로 VAE 준비. 전달 데이터를 sampler에, 준비 신호를 원격 디코딩에 연결. 이미지·오디오 파일 생성 없음",
+    "outputs": {
+      "0": {
+        "name": "수동 준비 신호",
+        "tooltip": "원격 디코딩의 준비 신호 입력 연결"
+      },
+      "1": {
+        "name": "전달 데이터",
+        "tooltip": "선행 데이터를 그대로 전달. sampler conditioning에 연결"
+      }
+    }
+  }
+}
