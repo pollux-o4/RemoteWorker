@@ -79,3 +79,11 @@ class InputPreparationTests(unittest.TestCase):
             FUNCTION='run'
             def run(self,value):return (value,)
         self.assertEqual(Resolver(g,{'PrimitiveString':Primitive}).inputs('decode',exclude=('samples',)),{'vae_name_override':'chosen.vae'})
+
+    def test_genrel_draft_input_is_cpu_safe_and_preserves_text(self):
+        class RequestInput:
+            FUNCTION = 'run'
+            def run(self, name, text): return (text,)
+        graph = {'draft': {'class_type': 'RequestConditionInput', 'inputs': {'name': 'prompt', 'text': '최종 Draft\nline 2'}},
+                 'clip': {'inputs': {'prompt': ['draft', 0]}}}
+        self.assertEqual(Resolver(graph, {'RequestConditionInput': RequestInput}).inputs('clip'), {'prompt': '최종 Draft\nline 2'})

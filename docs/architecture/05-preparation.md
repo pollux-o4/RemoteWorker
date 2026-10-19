@@ -18,6 +18,7 @@
 - VAE 이미 준비된 경우: 새 CLIP 실행 시 준비 예약 무효화 · CLIP 후 재준비 또는 실제 decode로 로딩
 - 디코딩 진입 장벽: 같은 peer의 미준비 다음 CLIP 우선 처리 · 전경 decode gate 입장 이전
 - 삭제된 다음 작업: 현재 영상 실패로 전파 금지 · 취소·재정렬 뒤 선두 재확인
+- `RequestConditionInput`: GenRel Draft의 CPU 문자열 입력 · `Resolver.SAFE_TYPES` 허용 · name/text → STRING 계약
 - 지원 외 입력·다음 encoder 실패·handoff 용량 초과: 상태 표시·일반 전경 재계산 경로 유지
 - 수동 warmup 연결: 자동 웜업 선택보다 우선 · 실제 decode의 다음 CLIP 우선 장벽 유지
 
