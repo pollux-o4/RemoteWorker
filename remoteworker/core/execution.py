@@ -23,13 +23,20 @@ def cancel_on_remote_failure(api: Any, prompt_id: str):
 
 
 @contextmanager
-def completed_artifacts(api, workflow, request_id, specs):
-    """Keep cancellation active through the caller's result decoding."""
+def completed_prompt(api, workflow):
+    """Keep targeted cancellation active through waiting and result consumption."""
     prompt_id = api.submit(workflow)
     if not isinstance(prompt_id, str) or not prompt_id:
         raise RuntimeError("RemoteWorker API returned no prompt_id")
     with cancel_on_remote_failure(api, prompt_id):
-        paths = extract_artifact_paths(api.wait_for_history(prompt_id), prompt_id, request_id, specs)
+        yield prompt_id, api.wait_for_history(prompt_id)
+
+
+@contextmanager
+def completed_artifacts(api, workflow, request_id, specs):
+    """Keep cancellation active through the caller's result decoding."""
+    with completed_prompt(api, workflow) as (prompt_id, history):
+        paths = extract_artifact_paths(history, prompt_id, request_id, specs)
         yield {name: api.download_artifact(path) for name, path in paths.items()}
 
 

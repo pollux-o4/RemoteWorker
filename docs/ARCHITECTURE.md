@@ -30,7 +30,9 @@ remoteworker/
 ├── conditioning/           CLIP 입력·workflow
 ├── minimax/                참조 미디어·workflow·모델 어댑터
 ├── prompt/                 프롬프트 생성·프로필 저장
-└── qwen/                   호출 어댑터·V3 worker
+├── preparation/            큐 계획·CLIP 선계산·VAE 전환·일회 전달
+├── qwen/                   호출 어댑터·V3 worker
+└── vae/                    원격 디코딩·CPU 직렬화·비동기 웜업
 web/                        브라우저 확장
 tests/                      계약·실행·브라우저 회귀검증
 tools/                      격리 인스턴스 스모크 검사
@@ -50,5 +52,18 @@ tools/                      격리 인스턴스 스모크 검사
 | CLIP·grounded workflow | [`remoteworker/conditioning/workflow.py`](../remoteworker/conditioning/workflow.py) | `tests/test_conditioning.py` |
 | MiniMax 참조 미디어·첫/마지막 프레임 | [`remoteworker/minimax/reference.py`](../remoteworker/minimax/reference.py), [`remoteworker/minimax/image_to_video.py`](../remoteworker/minimax/image_to_video.py) | 모델별 계약 테스트 |
 | Qwen positive·negative·latent | [`remoteworker/qwen/service.py`](../remoteworker/qwen/service.py), [`remoteworker/qwen/worker.py`](../remoteworker/qwen/worker.py) | V3 네이티브 스키마·모델 계약 테스트 |
-| 프로필 스키마·저장 | [`remoteworker/prompt/profiles.py`](../remoteworker/prompt/profiles.py) | `tests/test_remoteworker/prompt/service.py`, `tests/test_routes.py` |
+| 프로필 스키마·저장 | [`remoteworker/prompt/profiles.py`](../remoteworker/prompt/profiles.py) | `tests/test_remote_prompt_enhancer.py`, `tests/test_routes.py` |
 | 브라우저 선택값·프로필 폼·소켓 | [`web/remote_choices.js`](../web/remote_choices.js), [`web/remote_profiles.js`](../web/remote_profiles.js), [`web/remote_profile_dialog.js`](../web/remote_profile_dialog.js), [`web/remote_sockets.js`](../web/remote_sockets.js) | `tests/test_web_choices.py`, `tests/test_web_sockets.py` |
+
+| 자동 준비·decode 진입 | [`preparation/`](../remoteworker/preparation/) | `tests/test_preparation_contracts.py`, `tests/test_scheduler_policy.py` |
+
+## 자동 준비 확장
+
+- [큐·CPU 입력·일회 handoff·콜드 스타트·웜업](architecture/05-preparation.md)
+- 큐 계획·실행 컨텍스트·정책·전송 경계: 상세 C3/C4 참조
+
+## 공유 파일 영상 저장
+
+- [C2~C4 · 공유 latent·peer MP4 저장·ack 후 임시 삭제](architecture/06-shared-video.md)
+- 소유: `vae/shared_video.py` · `shared_store.py` · `worker.py` · `schema.py`
+- 검증: `tests/test_shared_vae_video.py` · `tools/e2e_vae.py --mode shared`

@@ -1,0 +1,11 @@
+{
+  "RemoteVAEDecode": {
+    "display_name": "Remote VAE Decode · Image/Video"
+  },
+  "RemoteVAEDecodeAudio": {
+    "display_name": "Remote VAE Decode · Audio"
+  },
+  "RemoteVAEWarmup": {
+    "display_name": "Remote VAE Warmup"
+  }
+}

@@ -6,7 +6,7 @@ import hashlib
 import uuid
 from typing import Any
 
-from ..core.artifacts import CONDITIONING_ARTIFACT
+from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
 from ..core.execution import RequestInputs, completed_artifacts
 from ..core.media import encode_image_frame_png
 from ..core.protocol import CACHE_POLICIES, DEFAULT_CACHE_POLICY, ClipSelection
@@ -98,7 +98,7 @@ def build_workflow(
         "clip": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip.clip_name, "type": clip.clip_type, "device": clip.device}},
         "vae": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
         "encode": {"class_type": "MiniMaxH3ImageToVideo", "inputs": {"clip": ["clip", 0], "vae": ["vae", 0], "prompt": prompt, "width": width, "height": height, "length": length}},
-        "save": {"class_type": "SaveConditioning", "inputs": {"conditioning": ["encode", 0], "filename_prefix": f"remote-conditioning/{request_id}/cond"}},
+        "save": {"class_type": "SaveRemoteConditioning", "inputs": {"conditioning": ["encode", 0], "filename_prefix": f"remote-conditioning/{request_id}/cond"}},
         "save_latent": {"class_type": "SaveRemoteLatent", "inputs": {"samples": ["encode", 1], "filename_prefix": f"remote-conditioning/{request_id}/latent"}},
     }
     for input_name, path in (("first_frame", first_frame), ("last_frame", last_frame)):

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from ..core.artifacts import CONDITIONING_ARTIFACT
+from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
 from ..core.execution import RequestInputs, completed_artifacts
 from ..core.media import encode_image_frame_png
 from ..core.protocol import DEFAULT_CACHE_POLICY, ClipSelection

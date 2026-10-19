@@ -1,0 +1,28 @@
+.remote-preparation { color: var(--fg-color,#e4e4e7); background:var(--comfy-menu-bg,#202124); border:1px solid #454545; border-radius:10px; padding:24px; width:min(560px,calc(100vw - 32px)); box-sizing:border-box; max-height:calc(100dvh - 40px); overflow:auto; }
+.remote-preparation::backdrop {background:#0009}
+.remote-preparation header {display:flex; justify-content:space-between; align-items:center; gap:20px}
+.remote-preparation h2 {font-size:18px;margin:0}
+.remote-preparation button {color:inherit; background:#303236; border:1px solid #555; border-radius:6px; padding:8px 14px; min-height:36px;cursor:pointer}
+.remote-preparation button:focus-visible {outline:2px solid #b4d8d2;outline-offset:3px}
+.remote-preparation button:disabled {opacity:.5;cursor:wait}
+.remote-preparation .preparation-hint {color:#b1b1b6;font-size:13px;line-height:1.6}
+.preparation-events section {padding:12px 0;border-top:1px solid #454545}
+.preparation-events p {margin:5px 0;overflow-wrap:anywhere;font-size:13px}
+.preparation-events time {color:#aaa;font-size:12px}
+
+.remote-preparation[open] {display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.remote-preparation header,.remote-preparation > p,.remote-preparation > button {flex-shrink:0}
+.remote-preparation header {margin:0;padding:0}
+.remote-preparation > p {margin:0}
+.remote-preparation > button {align-self:flex-end}
+.remote-preparation .preparation-events {min-height:0;overflow:auto;overscroll-behavior:contain}
+@media(max-width:440px) {.remote-preparation {padding:18px;width:calc(100vw - 24px)}}
+
+.remote-preparation-sidebar {padding:16px;box-sizing:border-box}
+.remote-preparation-sidebar button {padding:10px 14px;border:1px solid var(--border-color,#555);border-radius:6px;background:var(--comfy-input-bg,#303236);color:var(--fg-color,#eee);cursor:pointer}
+
+.remote-preparation .preparation-schedule { flex-shrink:0; padding:12px; border:1px solid var(--border-color,#444); border-radius:6px; }
+.remote-preparation .preparation-schedule[hidden] { display:none; }
+.remote-preparation .preparation-schedule p { margin:6px 0 0; line-height:1.5; font-size:12px; color:var(--descrip-text,#aaa); }
+
+.remote-preparation .preparation-hint,.remote-preparation .preparation-schedule p {word-break:keep-all;overflow-wrap:anywhere}

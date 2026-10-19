@@ -15,6 +15,8 @@ flowchart TB
     Peer -->|프로필 읽기·쓰기| Profiles[(peer 사용자 디렉터리 JSON)]
     Peer -->|미디어·결과 읽기·쓰기| PeerFiles[(peer temp·output)]
     Caller -->|conditioning 읽기·쓰기| CallerFiles[(호출 측 input·output)]
+    Caller -->|latent 저장·완료 확인·입력 삭제| Shared[(선택적 공유 latent·최종 영상)]
+    Peer -->|latent 읽기·영상 인코딩·완료 저장| Shared
     Peer -->|모델 로드| Models[(peer 모델)]
 ```
 
@@ -27,3 +29,5 @@ flowchart TB
 | 기본값 덮어쓰기 | 저장소 밖 설정 파일 |
 
 endpoint·모델 선택: 노드 입력, 로컬 기본값 선택 적용. GPU·포트·설치 경로: 로컬 배치 문서.
+
+공유 디스크 영상 경로·완료 계약: [공유 영상 저장](06-shared-video.md).

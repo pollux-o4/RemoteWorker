@@ -13,6 +13,7 @@ class RemoteArtifactSpec(NamedTuple):
     extension: str
 
 
+REMOTE_CONDITIONING_ARTIFACT = RemoteArtifactSpec("conditioning", "save", "conditioning", ".cond")
 CONDITIONING_ARTIFACT = RemoteArtifactSpec("conditioning", "save", "text", ".cond")
 PROMPT_ARTIFACT = RemoteArtifactSpec("prompt", "save", "text", ".txt")
 
@@ -68,15 +69,8 @@ def _validate_artifact_path(artifact: str, request_id: str, spec: RemoteArtifact
     return artifact
 
 
-def extract_artifact_paths(
-    history: dict[str, Any],
-    prompt_id: str,
-    request_id: str,
-    specs: tuple[RemoteArtifactSpec, ...],
-) -> dict[str, str]:
-    """Recover exactly one validated output artifact for each declared strategy result."""
-    if not specs or len({spec.name for spec in specs}) != len(specs):
-        raise ValueError("Remote Conditioning artifact specs must be non-empty with unique names")
+def successful_outputs(history: dict[str, Any], prompt_id: str) -> dict[str, Any]:
+    """Validate peer completion once for file artifacts and shared receipts."""
     try:
         entry = history[prompt_id]
         status = entry["status"]["status_str"]
@@ -86,11 +80,24 @@ def extract_artifact_paths(
         _raise_peer_execution_error(history, prompt_id)
     if status != "success":
         raise RuntimeError(f"Remote Conditioning is not complete for prompt {prompt_id}: {status!r}")
+    return entry.get("outputs", {})
+
+
+def extract_artifact_paths(
+    history: dict[str, Any],
+    prompt_id: str,
+    request_id: str,
+    specs: tuple[RemoteArtifactSpec, ...],
+) -> dict[str, str]:
+    """Recover exactly one validated output artifact for each declared strategy result."""
+    if not specs or len({spec.name for spec in specs}) != len(specs):
+        raise ValueError("Remote Conditioning artifact specs must be non-empty with unique names")
+    outputs = successful_outputs(history, prompt_id)
 
     artifacts: dict[str, str] = {}
     for spec in specs:
         try:
-            locators = entry["outputs"][spec.output_node][spec.ui_field]
+            locators = outputs[spec.output_node][spec.ui_field]
         except (KeyError, TypeError) as exc:
             raise RuntimeError(f"Remote Conditioning {spec.name} output is missing for prompt {prompt_id}") from exc
         if not isinstance(locators, list) or len(locators) != 1:

@@ -263,6 +263,12 @@ class ClipLoaderCapabilityTests(unittest.TestCase):
             }
         )
 
+    def test_accepts_cleanup_without_execution_cache_extension(self):
+        validate_cleanup_capability({"input": {
+            "required": {"offload_model": ["BOOLEAN"], "offload_cache": ["BOOLEAN"]},
+            "optional": {"anything": ["*", {}]},
+        }})
+
     def test_rejects_missing_vram_cleanup_contract(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "VRAMCleanup"):
             validate_cleanup_capability(
