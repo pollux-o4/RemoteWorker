@@ -88,15 +88,28 @@ def load_latent(request_id):
     return validate_latent(restore(torch.load(path, map_location='cpu', weights_only=True)))
 
 
+def media_path(request_id, options):
+    return request_path('outputs', request_id, 'audio.wav' if options.get('kind') == 'audio' else 'video.mp4')
+
+
 def read_receipt(request_id, options=None):
     receipt_path = request_path('outputs', request_id, 'receipt.json')
     if not receipt_path.exists():
         return None
     receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-    video = request_path('outputs', request_id, 'video.mp4')
+    video = media_path(request_id, receipt.get('options', {}))
+    consumed = False
+    marker = receipt_path.with_name('consumed.json')
+    if not video.exists() and marker.is_file():
+        final_id = json.loads(marker.read_text(encoding='utf-8')).get('final_id')
+        # One hop only: a final receipt cannot itself be a consumed source.
+        final_path = request_path('outputs', final_id, 'receipt.json')
+        if not final_path.with_name('consumed.json').exists():
+            final = read_receipt(final_id)
+            consumed = bool(final and final.get('final') is True and request_id in final.get('sources', []))
     if (receipt.get('request_id') != request_id or receipt.get('path') != str(video)
-            or not video.is_file() or video.stat().st_size <= 0
-            or receipt.get('bytes') != video.stat().st_size):
+            or (not consumed and (not video.is_file() or video.stat().st_size <= 0
+                or receipt.get('bytes') != video.stat().st_size))):
         raise ValueError('공유 영상 결과 경로 또는 파일 크기를 확인할 수 없습니다. latent를 보존합니다.')
     if options is not None and receipt.get('options') != options:
         raise ValueError('이미 완료된 작업의 설정이 다릅니다. 새 latent 저장 작업을 만드세요.')
@@ -119,7 +132,7 @@ def publish(request_id, options, encode):
         receipt = read_receipt(request_id, options)
         if receipt is None:
             samples = load_latent(request_id)
-            path = request_path('outputs', request_id, 'video.mp4')
+            path = media_path(request_id, options)
             metadata = {}
 
             def write(temporary):

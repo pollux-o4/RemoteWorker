@@ -1,11 +1,89 @@
 {
   "RemoteVAEDecode": {
-    "display_name": "Remote VAE Decode · Image/Video"
+    "display_name": "Remote VAE Decode · Image/Video",
+    "inputs": {
+      "output_mode": {
+        "name": "Output mode",
+        "options": {
+          "shared": "Shared folder · save file",
+          "tensor": "Tensor · downstream processing"
+        }
+      },
+      "request_id": {
+        "name": "Retry job ID"
+      },
+      "fps": {
+        "name": "Frame rate"
+      },
+      "audio_vae_name": {
+        "name": "Audio VAE"
+      },
+      "crf": {
+        "name": "Quality · CRF"
+      }
+    },
+    "outputs": [
+      {
+        "name": "Images · tensor mode"
+      },
+      {
+        "name": "File path · shared mode"
+      }
+    ]
   },
   "RemoteVAEDecodeAudio": {
-    "display_name": "Remote VAE Decode · Audio"
+    "display_name": "Remote VAE Decode · Audio",
+    "inputs": {
+      "output_mode": {
+        "name": "Output mode",
+        "options": {
+          "shared": "Shared folder · save file",
+          "tensor": "Tensor · downstream processing"
+        }
+      },
+      "request_id": {
+        "name": "Retry job ID"
+      }
+    },
+    "outputs": [
+      {
+        "name": "Audio · tensor mode"
+      },
+      {
+        "name": "File path · shared mode"
+      }
+    ]
   },
   "RemoteVAEWarmup": {
     "display_name": "Remote VAE Warmup"
+  },
+  "RemoteVAECombineMedia": {
+    "display_name": "Combine Shared Video + Audio",
+    "description": "Connect VAE file paths. Validate the final video before cleaning up intermediate files.",
+    "inputs": {
+      "video_path": {
+        "name": "Video file"
+      },
+      "audio_path": {
+        "name": "Audio file"
+      },
+      "cleanup_sources": {
+        "name": "Clean up intermediate files"
+      },
+      "prompt": {
+        "name": "Prompt"
+      },
+      "unique_id": {
+        "name": "Node ID"
+      }
+    },
+    "outputs": [
+      {
+        "name": "Video"
+      },
+      {
+        "name": "File path"
+      }
+    ]
   }
 }

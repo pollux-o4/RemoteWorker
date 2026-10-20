@@ -85,7 +85,8 @@ app.registerExtension({
   name: 'RemoteWorker.AutomaticPreparation',
   nodeCreated(node) {
     if (!['RemoteVAEDecode', 'RemoteVAEDecodeAudio'].includes(node.comfyClass || node.type)) return;
-    node.addWidget('button', '자동 준비 상태', null, showPreparation, {serialize: false});
+    const button = node.addWidget('button', '자동 준비 상태', null, showPreparation, {serialize: false});
+    button.serialize = false;
     node.setSize?.([Math.max(node.size?.[0] || 0, 360), node.computeSize()[1]]);
   },
   async setup() {

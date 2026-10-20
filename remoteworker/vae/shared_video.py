@@ -66,7 +66,7 @@ class RemoteVAEVideo:
         return video_inputs()
 
     @classmethod
-    def VALIDATE_INPUTS(cls, vae_name):
+    def VALIDATE_INPUTS(cls, vae_name, audio_vae_name=""):
         return validate_model_choice(vae_name)
 
     @classmethod
@@ -75,30 +75,35 @@ class RemoteVAEVideo:
 
     def run(self, vae_name, fps=VIDEO_FPS, audio_vae_name='', crf=VIDEO_CRF, tiled=False,
             server_url=DEFAULT_SERVER_URL, timeout_seconds=600, memory_policy='release_after_result',
-            latent=None, request_id='', warmup=None):
+            latent=None, request_id='', warmup=None, kind='image'):
         if latent and request_id and latent != request_id:
             raise ValueError('연결된 latent와 재시도 작업 ID가 다릅니다.')
         request_id = latent or request_id
         store.request_path('temp', request_id, 'latent.pt')
-        options = video_options(vae_name, audio_vae_name, fps, crf, tiled)
-        try:
-            api = peer_api(server_url, timeout_seconds)
-            preflight(api, vae_name, 'SharedVAEVideoWorker', memory_policy)
-            if audio_vae_name:
-                preflight(api, audio_vae_name, 'SharedVAEVideoWorker')
-            warmup_tasks.finish(api, warmup, vae_name=vae_name, kind='image', server_url=server_url)
-            graph = {'save': {'class_type': 'SharedVAEVideoWorker', 'inputs': {'request_id': request_id, **options}}}
-            if memory_policy == 'release_after_result':
-                graph['cleanup'] = build_release_cleanup_node(['save', 0])
-            with completed_prompt(api, graph) as (prompt_id, history):
-                outputs = successful_outputs(history, prompt_id)
-                receipts = outputs.get('save', {}).get('shared_video')
-                if not isinstance(receipts, list) or len(receipts) != 1:
-                    raise ValueError('Shared VAE video receipt is missing')
-                path = store.acknowledge(request_id, receipts[0], options)
-            return {'ui': {'text': [path]}, 'result': (path,)}
-        except Exception as exc:
-            raise RuntimeError(f'공유 VAE 영상 작업 실패 · 재시도 ID: {request_id} · 임시 latent 보존: {exc}') from exc
+        options = video_options(vae_name, audio_vae_name, fps, crf, tiled, kind)
+        path = execute_shared(peer_api(server_url, timeout_seconds), request_id, options,
+            server_url=server_url, memory_policy=memory_policy, warmup=warmup)
+        return {'ui': {'text': [path]}, 'result': (path,)}
+
+
+def execute_shared(api, request_id, options, *, server_url, memory_policy, warmup=None):
+    try:
+        preflight(api, options['vae_name'], 'SharedVAEVideoWorker', memory_policy)
+        if options['audio_vae_name']:
+            preflight(api, options['audio_vae_name'], 'SharedVAEVideoWorker')
+        warmup_tasks.finish(api, warmup, vae_name=options['vae_name'], kind=options.get('kind', 'image'), server_url=server_url)
+        graph = {'save': {'class_type': 'SharedVAEVideoWorker', 'inputs': {'request_id': request_id, **options}}}
+        if memory_policy == 'release_after_result':
+            graph['cleanup'] = build_release_cleanup_node(['save', 0])
+        with completed_prompt(api, graph) as (prompt_id, history):
+            outputs = successful_outputs(history, prompt_id)
+            receipts = outputs.get('save', {}).get('shared_video')
+            if not isinstance(receipts, list) or len(receipts) != 1:
+                raise ValueError('Shared VAE video receipt is missing')
+            path = store.acknowledge(request_id, receipts[0], options)
+        return path
+    except Exception as exc:
+        raise RuntimeError(f'공유 VAE 작업 실패 · 재시도 ID: {request_id} · 임시 latent 보존: {exc}') from exc
 
 
 NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (

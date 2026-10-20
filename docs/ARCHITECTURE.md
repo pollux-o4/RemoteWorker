@@ -20,6 +20,8 @@ flowchart TB
 
 ## 소스 구조
 
+- [공유 파일 결합·최종화](architecture/07-file-finalization.md): 경로 입력·영상 streamcopy·AAC·원자 발행·소비 파일 정리
+
 ```text
 __init__.py                 ComfyUI 진입점
 remoteworker/

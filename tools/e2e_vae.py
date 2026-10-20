@@ -107,11 +107,52 @@ def verify_shared(caller, peer_url, vae, audio_vae, large, tiled):
                 peer_failure_recovered=bool(audio_vae), latent_deleted=True, seconds=round(time.monotonic()-started, 2))
 
 
+def verify_unified(caller, peer_url, vae, audio_vae, large, kind, tiled):
+    import av
+    size, frames = (512, 175) if large and kind == 'image' else (64, 5)
+    options = dict(vae_name=vae, server_url=peer_url, timeout_seconds=1800,
+        memory_policy='release_after_result', output_mode='shared', fps=VIDEO_FPS,
+        audio_vae_name=audio_vae, crf=VIDEO_CRF, **(DECODE_DEFAULTS | {'tiled': tiled}))
+    graph = {'latent': node('EmptyMiniMaxH3LatentAV', width=size, height=size, length=frames),
+        'decode': node('RemoteVAEDecodeAudio' if kind == 'audio' else 'RemoteVAEDecode',
+            samples=['latent', 0], **options)}
+    graph['inactive'] = node('SaveRemoteVAEOutput', value=['decode', 0],
+        filename_prefix=f'remote-conditioning/{uuid.uuid4().hex}/decoded')
+    started = time.monotonic()
+    outputs = run(caller, graph)
+    assert 'inactive' not in outputs, 'Inactive tensor branch executed'
+    media = outputs['decode']['shared_media'][0]
+    request_id, path = media['request_id'], Path(media['path'])
+    assert not store.request_path('temp', request_id, 'latent.pt').exists()
+    with av.open(str(path)) as container:
+        if kind == 'image':
+            stream = container.streams.video[0]
+            assert (stream.width, stream.height, sum(1 for _ in container.decode(stream))) == (size, size, frames)
+            assert bool(container.streams.audio) == bool(audio_vae)
+            decoded_bytes = frames*size*size*12
+        else:
+            stream = container.streams.audio[0]
+            samples = sum(frame.samples for frame in container.decode(stream))
+            assert samples > 0
+            decoded_bytes = samples*len(stream.layout.channels)*4
+    before = path.stat().st_mtime_ns
+    graph['decode']['inputs']['request_id'] = request_id
+    graph['latent']['inputs'].update(width=32, height=32)
+    assert run(caller, graph)['decode']['text'] == [str(path)]
+    assert path.stat().st_mtime_ns == before
+    from urllib.request import Request, urlopen
+    with urlopen(Request(caller._server_url + media['url'], headers={'Range': 'bytes=0-31'})) as response:
+        assert response.status == 206 and len(response.read()) == 32
+    return dict(kind=kind, path=str(path), decoded_mib=decoded_bytes/1024**2,
+        latent_deleted=True, retry_without_reencoding=True, media_range=True,
+        seconds=round(time.monotonic()-started, 2))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('caller', 'peer', 'vae'):
         parser.add_argument('--'+name, required=True)
-    parser.add_argument('--mode', choices=('tensor', 'shared'), default='shared')
+    parser.add_argument('--mode', choices=('tensor', 'shared', 'unified'), default='shared')
     parser.add_argument('--kind', choices=('audio', 'image'), default='audio')
     parser.add_argument('--audio-vae', default='')
     parser.add_argument('--tiled', action='store_true')
@@ -119,7 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--report')
     args = parser.parse_args()
     caller = HttpComfyApi(args.caller, 1800)
-    report = verify_shared(caller, args.peer, args.vae, args.audio_vae, args.large, args.tiled) if args.mode == 'shared' else verify_tensor(
+    report = verify_unified(caller, args.peer, args.vae, args.audio_vae, args.large, args.kind, args.tiled) if args.mode == 'unified' else verify_shared(caller, args.peer, args.vae, args.audio_vae, args.large, args.tiled) if args.mode == 'shared' else verify_tensor(
         caller, args.peer, args.vae, args.kind, args.tiled)
     text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.report:

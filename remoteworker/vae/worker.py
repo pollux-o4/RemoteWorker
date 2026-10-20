@@ -142,6 +142,25 @@ def encode_video(samples, path, options):
     from comfy_api.latest import InputImpl, Types
 
     vae = VAELoader().load_vae(options['vae_name'])[0]
+    if options.get('kind') == 'audio':
+        import av
+        audio = decode(vae, samples, 'audio', **DECODE_DEFAULTS, transfer=False)
+        waveform = audio['waveform'].detach().cpu()
+        if waveform.shape[0] != 1:
+            raise ValueError('공유 오디오 저장은 배치 1만 지원합니다.')
+        channels = waveform.shape[1]
+        if channels not in (1, 2):
+            raise ValueError('공유 WAV 저장은 모노·스테레오만 지원합니다.')
+        with av.open(str(path), 'w', format='wav') as container:
+            stream = container.add_stream('pcm_f32le', rate=audio['sample_rate'])
+            frame = av.AudioFrame.from_ndarray(waveform[0].float().numpy(), format='fltp',
+                                              layout='stereo' if channels == 2 else 'mono')
+            frame.sample_rate = audio['sample_rate']
+            for packet in stream.encode(frame):
+                container.mux(packet)
+            for packet in stream.encode(None):
+                container.mux(packet)
+        return dict(audio=True, sample_rate=audio['sample_rate'], samples=int(waveform.shape[-1]))
     frames = decode(vae, samples, 'image', **(DECODE_DEFAULTS | {'tiled': options['tiled']}), transfer=False)
     audio = samples.get('remote_vae_audio')
     if options['audio_vae_name']:
@@ -163,7 +182,9 @@ class SharedVAEVideoWorker:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {'required': {'request_id': ('STRING',), 'vae_name': ('STRING',), **video_fields()}}
+        return {'required': {'request_id': ('STRING',), 'vae_name': ('STRING',), **video_fields(),
+                             'audio_vae_name': ('STRING', {'default': ''})},
+                'optional': {'kind': (['image', 'audio'],)}}
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

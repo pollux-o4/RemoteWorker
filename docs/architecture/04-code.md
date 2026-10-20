@@ -83,7 +83,7 @@ flowchart TB
 
 MiniMax Image to Video와 Reference는 `SaveRemoteConditioning`의 `conditioning` UI 필드에서 요청별 `.cond` 파일을 회수한다. ComfyUI 내장 `SaveConditioning`은 safetensors를 저장하고 해당 UI locator를 반환하지 않으므로 원격 반환 프로토콜에 사용하지 않는다. 기존 일반 conditioning 계약과는 별도 `REMOTE_CONDITIONING_ARTIFACT`로 선언한다.
 
-## 원격 VAE·더미 웜업
+## 원격 VAE 텐서 모드·더미 웜업
 
 ```mermaid
 flowchart TB
@@ -103,7 +103,7 @@ flowchart TB
 | `vae/service.py` | 호출 노드·peer 사전 검사·워크플로 조립 |
 | `vae/worker.py` | 요청 latent 로딩·네이티브 디코더 호출·더미 연산 |
 | `vae/warmup.py` | 비동기 제출·ticket 검증·선택적 완료 대기 |
-| `vae/routes.py` | 소비 완료 decoded tensor만 요청별 제거, symlink·경로 탈출 거부 |
+| `vae/routes.py` | 텐서 전송 결과 정리·공유 접근 검사·receipt 기반 미디어 제공 |
 | `vae/codec.py` | CPU 이동·무손실 직렬화·크기 제한·H3 결합 latent 복원 |
 | 기존 `core/execution.py` | 제출·대기·실패 취소·임시 입력 정리 |
 
@@ -116,7 +116,7 @@ flowchart TB
 - cleanup capability: 기본 두 옵션 지원, `reset_execution_cache` 확장 없는 설치본 허용
 - 결과 회수 후 요청별 `decoded_*.pt` 자동 제거, 정리 실패 경고
 - IMAGE/AUDIO 텐서 반환 전송: 요청당 512 MiB 제한, 긴 영상의 chunk 전송 미구현, 손실 압축 없음
-- 공유 파일 영상 경로: `SaveSharedVAELatent` → `RemoteVAEVideo` → peer MP4·receipt → 호출 측 ack·입력 삭제 · [C2~C4](06-shared-video.md)
+- 공유 파일 경로: `RemoteVAEDecode / Audio.output_mode=shared` → `delivery.decode_shared` → `shared_video.execute_shared` → peer 미디어·receipt → 호출 측 ack·입력 삭제 · [C2~C4](06-shared-video.md)
 - 동일 로컬 인터페이스·포트로의 원격 호출 거부: 직렬 큐 자기 대기 방지
 - 다음 작업 자동 선처리·디코딩 우선 스케줄러: 미연결, 현재 명시적 그래프 순서만 지원
 - 검증: `tests/test_remote_vae.py`, 격리 caller/peer 간 `tools/e2e_vae.py --mode tensor`
@@ -129,6 +129,7 @@ flowchart TB
 | `vae/schema.py` | caller/worker 입력·영상 범위 검증·타일 기본값·`REMOTE_VAE_WARMUP`·`REMOTE_VAE_LATENT` 정본 |
 | `web/vae_definitions.js` | 노드 등록 전 원격 목록 준비, 캔버스·Vue 고급 위젯 메타데이터 적용 |
 | `web/remote_vae.js` | 모델 검색·선택 보존·짧은 실패 상태·명시적 고급 설정 전환 |
+| `web/vae_delivery.js` | 결과 방식·구형 그래프 복원·공유 접근 상태·미리보기·파일 경로 |
 | `locales/ko/nodeDefs.json` | 노드·입출력 이름·도움말 한국어 표시 |
 
 - 재조회·서버 변경: 기존 VAE 선택 보존, 임의 모델 교체 없음

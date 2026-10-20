@@ -6,9 +6,9 @@ from .prompt import service as prompt
 from .qwen import service as qwen
 from .qwen import worker as qwen_worker
 from .vae import service as vae_service, worker as vae_worker, routes as vae_routes
-from .vae import shared_video
+from .vae import shared_video, combine_node
 
-NODE_MODULES = (artifact_io, conditioning, reference, image_to_video, prompt, vae_selector, qwen_worker, qwen, vae_service, vae_worker, shared_video)
+NODE_MODULES = (artifact_io, conditioning, reference, image_to_video, prompt, vae_selector, qwen_worker, qwen, vae_service, vae_worker, shared_video, combine_node)
 
 
 def collect_nodes(modules):

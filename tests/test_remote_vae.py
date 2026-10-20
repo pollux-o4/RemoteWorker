@@ -123,7 +123,7 @@ class RemoteVAETests(unittest.TestCase):
         self.assertTrue(math.isnan(worker.RemoteVAEWarmupWorker.IS_CHANGED()))
         self.assertIn("after", service.RemoteVAEWarmup.INPUT_TYPES()["optional"])
         self.assertIn("warmup", service.RemoteVAEDecode.INPUT_TYPES()["optional"])
-        self.assertEqual(("AUDIO",), service.RemoteVAEDecodeAudio.RETURN_TYPES)
+        self.assertEqual(("AUDIO", "STRING"), service.RemoteVAEDecodeAudio.RETURN_TYPES)
         self.assertNotIn("tiled", service.RemoteVAEDecodeAudio.INPUT_TYPES()["required"])
 
     def test_worker_rejects_paths_outside_request_upload(self):

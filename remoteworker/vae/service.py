@@ -10,7 +10,7 @@ from ..core.transport import HttpComfyApi
 from ..defaults import DEFAULT_SERVER_URL
 from .codec import dumps, loads, validate_latent, validate_result
 from . import warmup as warmup_tasks
-from .schema import DECODE_DEFAULTS, WARMUP_TYPE, decode_inputs, warmup_inputs, validate_model_choice
+from .schema import DECODE_DEFAULTS, VIDEO_FPS, VIDEO_CRF, WARMUP_TYPE, decode_inputs, warmup_inputs, validate_model_choice
 
 RESULT = RemoteArtifactSpec("result", "save", "vae_output", ".pt")
 
@@ -100,41 +100,69 @@ def execute_warmup(api, *, vae_name, kind, server_url, background=False):
 
 class RemoteVAEDecode:
     KIND = "image"
-    DESCRIPTION = "Decode images or video on another ComfyUI server. Lossless CPU IMAGE return; 512 MiB transfer limit."
+    DESCRIPTION = "Decode on a peer. Shared folder saves a video and returns its path; tensor mode returns IMAGE (512 MiB limit)."
     SEARCH_ALIASES = ["remote decode", "원격 VAE", "영상 디코딩"]
-    OUTPUT_TOOLTIPS = ("Decoded image/video frames returned from the peer.",)
+    OUTPUT_TOOLTIPS = ("Active in tensor mode.", "Active in shared folder mode.")
 
     @classmethod
     def INPUT_TYPES(cls):
         return decode_inputs(cls.KIND)
 
     @classmethod
-    def VALIDATE_INPUTS(cls, vae_name):
-        return validate_model_choice(vae_name)
+    def VALIDATE_INPUTS(cls, vae_name, output_mode="tensor", server_url=DEFAULT_SERVER_URL, audio_vae_name=""):
+        valid = validate_model_choice(vae_name)
+        if valid is not True or output_mode == "tensor":
+            return valid
+        if output_mode != "shared":
+            return "알 수 없는 결과 방식입니다."
+        from .delivery import check_shared
+        try:
+            api = peer_api(server_url, 5)
+            preflight(api, vae_name, "SharedVAEVideoWorker")
+            if cls.KIND == "image" and audio_vae_name:
+                preflight(api, audio_vae_name, "SharedVAEVideoWorker")
+            check_shared(api)
+        except (OSError, ValueError, RuntimeError) as exc:
+            return str(exc)
+        return True
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("images", "file_path")
+    OUTPUT_NODE = True
     FUNCTION = "run"
     CATEGORY = "RemoteWorker/VAE"
+
+    def check_lazy_status(self, samples=None, request_id="", output_mode="tensor", **kwargs):
+        return [] if output_mode == "shared" and request_id else (["samples"] if samples is None else [])
 
     def run(self, samples, vae_name, server_url=DEFAULT_SERVER_URL, timeout_seconds=600,
             memory_policy="release_after_result", tiled=False, tile_size=DECODE_DEFAULTS["tile_size"],
             overlap=DECODE_DEFAULTS["overlap"], temporal_size=DECODE_DEFAULTS["temporal_size"],
-            temporal_overlap=DECODE_DEFAULTS["temporal_overlap"], warmup=None):
+            temporal_overlap=DECODE_DEFAULTS["temporal_overlap"], warmup=None, output_mode="tensor",
+            fps=VIDEO_FPS, audio_vae_name="", crf=VIDEO_CRF, request_id=""):
         api = peer_api(server_url, timeout_seconds)
+        if output_mode == "shared":
+            from .delivery import decode_shared
+            return decode_shared(api, samples, vae_name, self.KIND, server_url, timeout_seconds,
+                memory_policy, tiled, fps, audio_vae_name, crf, request_id, warmup)
+        if output_mode != "tensor":
+            raise ValueError("알 수 없는 결과 방식입니다.")
         warmup_tasks.finish(api, warmup, vae_name=vae_name, kind=self.KIND, server_url=server_url)
         result = execute_decode(api, samples=samples,
             vae_name=vae_name, kind=self.KIND, memory_policy=memory_policy, options={
                 "tiled": tiled, "tile_size": tile_size, "overlap": overlap,
                 "temporal_size": temporal_size, "temporal_overlap": temporal_overlap})
-        return (result,)
+        from comfy_execution.graph_utils import ExecutionBlocker
+        return (result, ExecutionBlocker(None))
 
 
 class RemoteVAEDecodeAudio(RemoteVAEDecode):
     KIND = "audio"
     DESCRIPTION = "Decode audio on another ComfyUI server. Preserves the native decoder's waveform and sample rate."
     SEARCH_ALIASES = ["remote audio", "원격 오디오", "오디오 디코딩"]
-    OUTPUT_TOOLTIPS = ("Decoded waveform and sample rate returned from the peer.",)
-    RETURN_TYPES = ("AUDIO",)
+    OUTPUT_TOOLTIPS = ("Active in tensor mode.", "Active in shared folder mode (float WAV).")
+    RETURN_TYPES = ("AUDIO", "STRING")
+    RETURN_NAMES = ("audio", "file_path")
 
 
 

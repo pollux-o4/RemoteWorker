@@ -37,7 +37,11 @@ export function applyInitialVaeDefinitions(definitions) {
         if (!VAE_NODE_TYPES.has(definition?.name)) continue;
         const fields = definition.input?.required;
         const names = initialModels.get(fields?.server_url?.[1]?.default);
-        if (names) fields.vae_name[0] = ["", ...names];
+        if (names) {
+            fields.vae_name[0] = ["", ...names];
+            const audio = definition.input?.optional?.audio_vae_name || fields.audio_vae_name;
+            if (audio) audio[0] = ["", ...names];
+        }
         recordVaeDefinition(definition);
     }
 }

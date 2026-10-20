@@ -1,0 +1,41 @@
+"""File-based counterpart to CreateVideo; standard VIDEO output stays composable."""
+from .mux import combine
+
+
+class RemoteVAECombineMedia:
+    CATEGORY = 'RemoteWorker/VAE'
+    DESCRIPTION = '공유 모드의 파일 경로 출력을 연결하세요. 영상 재인코딩 없이 음성을 결합하고 검증 후 중간 파일을 정리합니다. 텐서 모드는 기존 비디오 생성 노드를 사용하세요.'
+    RETURN_TYPES = ('VIDEO', 'STRING')
+    RETURN_NAMES = ('video', 'file_path')
+    FUNCTION = 'run'
+    OUTPUT_NODE = True
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {'required': {'video_path': ('STRING', {'forceInput': True})},
+                'optional': {'audio_path': ('STRING', {'forceInput': True}),
+                             'cleanup_sources': ('BOOLEAN', {'default': True,
+                                 'tooltip': '완성 파일 검증 후 해당 중간 MP4·WAV 삭제. 다른 노드에서도 사용하는 경우 자동 보존.'})},
+                'hidden': {'prompt': 'PROMPT', 'unique_id': 'UNIQUE_ID'}}
+
+    def run(self, video_path, audio_path='', cleanup_sources=True, prompt=None, unique_id=None):
+        from comfy.model_management import throw_exception_if_processing_interrupted
+        from comfy_api.latest import InputImpl
+        # Keep shared sources when another graph branch consumes the same path.
+        inputs = (prompt or {}).get(str(unique_id), {}).get('inputs', {})
+        links = [inputs.get(name) for name in ('video_path', 'audio_path')]
+        links = [link for link in links if isinstance(link, list)]
+        others = [value for key, node in (prompt or {}).items() if str(key) != str(unique_id)
+                  for value in node.get('inputs', {}).values() if isinstance(value, list)]
+        exclusive = not any(link in others for link in links)
+        receipt = combine(video_path, audio_path, cleanup=cleanup_sources and exclusive,
+                          interrupt=throw_exception_if_processing_interrupted)
+        media = {key: receipt[key] for key in ('request_id', 'path', 'sources', 'final')}
+        media['url'] = '/remote-vae/media/' + receipt['request_id']
+        return {'ui': {'shared_media': [media], 'text': [receipt['path']],
+                       'source_cleanup': [bool(cleanup_sources and exclusive)]},
+                'result': (InputImpl.VideoFromFile(receipt['path']), receipt['path'])}
+
+
+NODE_CLASS_MAPPINGS = {'RemoteVAECombineMedia': RemoteVAECombineMedia}
+NODE_DISPLAY_NAME_MAPPINGS = {'RemoteVAECombineMedia': 'Remote VAE · 영상·음성 결합 (파일)'}

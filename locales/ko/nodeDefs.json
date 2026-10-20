@@ -45,14 +45,36 @@
       },
       "temporal_overlap": {
         "name": "시간 겹침"
+      },
+      "output_mode": {
+        "name": "결과 방식",
+        "options": {
+          "shared": "공유 폴더 · 파일 저장",
+          "tensor": "텐서 반환 · 후처리"
+        }
+      },
+      "request_id": {
+        "name": "재시도 작업 ID"
+      },
+      "fps": {
+        "name": "프레임 속도"
+      },
+      "audio_vae_name": {
+        "name": "오디오 VAE"
+      },
+      "crf": {
+        "name": "영상 품질 · CRF"
       }
     },
-    "description": "다른 ComfyUI 서버에서 이미지·영상 디코딩. 결과 무손실 반환, 전송 한도 512MiB",
-    "outputs": {
-      "0": {
-        "name": "이미지·영상"
+    "description": "공유 폴더 모드: 처리 서버에서 영상 저장·파일 경로 반환. 텐서 모드: 후속 처리용 이미지 반환·512 MiB 전송 한도",
+    "outputs": [
+      {
+        "name": "이미지 · 텐서 모드"
+      },
+      {
+        "name": "파일 경로 · 공유 모드"
       }
-    }
+    ]
   },
   "RemoteVAEDecodeAudio": {
     "display_name": "원격 VAE 디코딩 · 오디오",
@@ -84,14 +106,27 @@
       "warmup": {
         "name": "수동 준비 신호",
         "tooltip": "동일한 서버·VAE·대상의 미리 준비 노드 출력 연결. 생략 가능"
+      },
+      "output_mode": {
+        "name": "결과 방식",
+        "options": {
+          "shared": "공유 폴더 · 파일 저장",
+          "tensor": "텐서 반환 · 후처리"
+        }
+      },
+      "request_id": {
+        "name": "재시도 작업 ID"
       }
     },
-    "description": "다른 ComfyUI 서버에서 오디오 디코딩. 네이티브 파형·샘플레이트 유지",
-    "outputs": {
-      "0": {
-        "name": "오디오"
+    "description": "공유 폴더 모드: 처리 서버에서 WAV 저장·파일 경로 반환. 텐서 모드: 네이티브 파형·샘플레이트 반환·512 MiB 전송 한도",
+    "outputs": [
+      {
+        "name": "오디오 · 텐서 모드"
+      },
+      {
+        "name": "파일 경로 · 공유 모드"
       }
-    }
+    ]
   },
   "RemoteVAEWarmup": {
     "display_name": "원격 VAE 미리 준비",
@@ -211,6 +246,35 @@
     "outputs": [
       {
         "name": "최종 영상 경로"
+      }
+    ]
+  },
+  "RemoteVAECombineMedia": {
+    "display_name": "공유 영상·음성 결합",
+    "description": "VAE의 파일 경로 출력을 연결하세요. 결합된 영상을 확인한 뒤 중간 파일을 정리합니다.",
+    "inputs": {
+      "video_path": {
+        "name": "영상 파일"
+      },
+      "audio_path": {
+        "name": "음성 파일"
+      },
+      "cleanup_sources": {
+        "name": "중간 파일 정리"
+      },
+      "prompt": {
+        "name": "프롬프트"
+      },
+      "unique_id": {
+        "name": "노드 ID"
+      }
+    },
+    "outputs": [
+      {
+        "name": "비디오"
+      },
+      {
+        "name": "파일 경로"
       }
     ]
   }

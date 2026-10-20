@@ -73,8 +73,9 @@ flowchart TB
 
 ## 공유 파일 영상 경로
 
-- `vae/shared_store.py`: 요청별 latent·최종 MP4·receipt·완료 확인 후 입력 삭제
-- `vae/shared_video.py`: 공개 노드·peer workflow·완료 확인
+- `vae/shared_store.py`: 요청별 latent·최종 MP4/WAV·receipt·완료 확인 후 입력 삭제
+- `vae/shared_video.py`: 공유 실행·peer workflow·완료 확인·기존 노드 어댑터
+- `vae/delivery.py`: 통합 디코더 모드 분기·양방향 공유 접근 검사
 - `vae/worker.py`: 네이티브 VAE·영상 인코딩
 - `vae/schema.py`: caller/worker 영상·타일 설정 정본
 - C2~C4 상세: [공유 latent → 영상](06-shared-video.md)

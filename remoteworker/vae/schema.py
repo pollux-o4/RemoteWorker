@@ -34,12 +34,16 @@ def decode_fields():
     }
 
 def decode_inputs(kind):
-    required = {"samples": ("LATENT", {"tooltip": "Sampler output. H3 combined video/audio latents are supported."}), **connection_inputs(),
+    required = {"samples": ("LATENT", {"lazy": True, "tooltip": "Sampler output. H3 combined video/audio latents are supported."}), **connection_inputs(),
         "memory_policy": memory_input()}
     if kind == "image":
         required.update(decode_fields())
     return {"required": required, "optional": {
-        "warmup": (WARMUP_TYPE, {"forceInput": True, "tooltip": "Optional manual override. VAE preparation is automatic during sampling; connect only to explicitly order a manual warmup using the same peer, VAE and output type."})}}
+        "warmup": (WARMUP_TYPE, {"forceInput": True, "tooltip": "Optional manual warmup ticket."}),
+        "output_mode": (["shared", "tensor"], {"default": "shared", "tooltip": "Shared folder: save on the peer and return a file path. Tensor: return IMAGE/AUDIO for downstream processing (512 MiB limit)."}),
+        **({name: value for name, value in video_fields().items() if name != "tiled"} if kind == "image" else {}),
+        "request_id": ("STRING", {"default": "", "advanced": True, "tooltip": "Retry a retained shared job without rerunning its sampler."}),
+    }}
 
 
 def warmup_inputs():
@@ -62,7 +66,7 @@ def video_fields():
     """Shared caller/worker video settings; ranges also drive validation."""
     return {
         'fps': ('FLOAT', {'default': VIDEO_FPS, 'min': 1.0, 'max': 120.0}),
-        'audio_vae_name': ('STRING', {'default': '', 'tooltip': 'H3 오디오 VAE 모델명. 비우면 저장된 AUDIO를 사용하거나 무음으로 저장합니다.'}),
+        'audio_vae_name': ([''], {'default': '', 'tooltip': 'H3 오디오 VAE 모델명. 비우면 저장된 AUDIO를 사용하거나 무음으로 저장합니다.'}),
         'crf': ('INT', {'default': VIDEO_CRF, 'min': 0, 'max': 51, 'advanced': True}),
         'tiled': ('BOOLEAN', {'default': False, 'advanced': True}),
     }
@@ -77,7 +81,9 @@ def video_inputs():
     }}
 
 
-def video_options(vae_name, audio_vae_name, fps, crf, tiled):
+def video_options(vae_name, audio_vae_name, fps, crf, tiled, kind="image"):
+    if kind not in ("image", "audio"):
+        raise ValueError("Unknown shared media kind")
     if validate_model_choice(vae_name) is not True:
         raise ValueError('영상 VAE를 선택하세요.')
     if not isinstance(audio_vae_name, str):
@@ -87,4 +93,7 @@ def video_options(vae_name, audio_vae_name, fps, crf, tiled):
         limits = fields[name][1]
         if type(value) not in types or not math.isfinite(value) or not limits['min'] <= value <= limits['max']:
             raise ValueError(f'Video {name} must be between {limits["min"]} and {limits["max"]}')
-    return dict(vae_name=vae_name, audio_vae_name=audio_vae_name, fps=fps, crf=crf, tiled=bool(tiled))
+    result = dict(vae_name=vae_name, audio_vae_name=audio_vae_name, fps=fps, crf=crf, tiled=bool(tiled))
+    if kind == "audio":
+        result["kind"] = kind
+    return result

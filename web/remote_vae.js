@@ -1,3 +1,4 @@
+import { setupDelivery, applyDelivery, migrateDelivery } from "./vae_delivery.js";
 import { app } from "../../scripts/app.js";
 import { normalizeRemoteVaeOptions, refreshRemoteChoiceOptions } from "./remote_choices.js";
 
@@ -15,6 +16,8 @@ export function applyVaeModels(node, payload) {
     // Never switch a workflow to another model as a side effect of discovery.
     const selected = widget.value || "";
     widget.options = { ...(widget.options || {}), values: [...new Set([selected, ...names])] };
+    const audio = node.widgets?.find((item) => item.name === "audio_vae_name");
+    if (audio) audio.options = { ...(audio.options || {}), values: [...new Set([audio.value || "", "", ...names])] };
     node._remoteVaeModels = names;
     app.graph?.setDirtyCanvas?.(true, true);
     return names.length;
@@ -82,6 +85,7 @@ export function setupVaeNode(node) {
     const details = node.addWidget("button", "remote_vae_details", null, () => {
         node.showAdvanced = !node.showAdvanced;
         applyAdvancedInputs(node);
+        applyDelivery(node);
         details.label = node.showAdvanced ? "고급 설정 숨기기" : "고급 설정 표시";
         resizeVaeNode(node);
     }, { serialize: false });
@@ -118,9 +122,11 @@ app.registerExtension({
     addCustomNodeDefs: preloadVaeDefinitions,
     beforeRegisterVueAppNodeDefs: applyInitialVaeDefinitions,
     beforeRegisterNodeDef(_nodeType, nodeData) { recordVaeDefinition(nodeData); },
-    nodeCreated: setupVaeNode,
+    beforeConfigureGraph: migrateDelivery,
+    nodeCreated(node) { setupVaeNode(node); setupDelivery(node); },
     loadedGraphNode(node) {
         normalizeVaeSockets(node);
         setupVaeNode(node);
+        setupDelivery(node);
     },
 });

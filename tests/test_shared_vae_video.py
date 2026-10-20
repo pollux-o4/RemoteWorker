@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import torch
 
-from remoteworker.vae import codec, schema, shared_store as store, shared_video as video, worker
+from remoteworker.vae import codec, schema, delivery, service, shared_store as store, shared_video as video, worker
 
 
 class Peer:
@@ -15,6 +15,9 @@ class Peer:
 
     def require_node(self, name):
         return {'input': {'required': {'vae_name': [['video.vae', 'audio.vae']]}}}
+
+    def _json(self, path, *, payload):
+        return delivery.receive_probe(**payload)
 
     def submit(self, graph):
         self.graph = graph
@@ -147,3 +150,25 @@ class SharedVideoTests(unittest.TestCase):
             for value in (limits['min']-1, limits['max']+1, float('nan'), True):
                 with self.subTest(name=name, value=value), self.assertRaises(ValueError):
                     schema.video_options(**(self.options | {name: value}))
+
+
+class DeliveryTests(unittest.TestCase):
+    setUp = SharedVideoTests.setUp
+    def test_storage_handshake_and_early_validation(self):
+        self.enterContext(patch.object(service, 'peer_api', return_value=self.peer))
+        self.assertTrue(service.RemoteVAEDecode.VALIDATE_INPUTS('video.vae', 'shared', 'http://peer'))
+        self.assertTrue(delivery.check_shared(self.peer)['ready'])
+        self.assertEqual(list(store.shared_root().glob('temp/*/probe*.json')), [])
+        with patch.object(self.peer, '_json', side_effect=RuntimeError('wrong mount')):
+            error = service.RemoteVAEDecode.VALIDATE_INPUTS('video.vae', 'shared', 'http://peer')
+        self.assertIsInstance(error, str)
+        self.assertIn('공유 폴더 연결 실패', error)
+        self.encoder.assert_not_called()
+
+    def test_retry_does_not_request_sampler_and_tensor_mode_preserves_legacy(self):
+        node = service.RemoteVAEDecode()
+        self.assertEqual(node.check_lazy_status(request_id=self.request_id, output_mode='shared'), [])
+        self.assertEqual(node.check_lazy_status(request_id=self.request_id, output_mode='tensor'), ['samples'])
+        self.assertEqual(node.RETURN_TYPES, ('IMAGE', 'STRING'))
+        self.assertEqual(service.RemoteVAEDecodeAudio.RETURN_TYPES, ('AUDIO', 'STRING'))
+        self.assertEqual(schema.decode_inputs('image')['optional']['output_mode'][1]['default'], 'shared')

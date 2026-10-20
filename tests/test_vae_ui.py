@@ -156,3 +156,60 @@ class VaeDefinitionTests(unittest.TestCase):
             assert.equal(node._remoteVaeRefresh.serialize,false);
             assert.equal(node._remoteVaeDetails.serialize,false);
         ''', api='export const api={async fetchApi(){return {ok:true,async json(){return {vae_name:["chosen.vae"]};}};}};')
+
+
+@unittest.skipUnless(shutil.which("node"), "Node.js required")
+class DeliveryBrowserContractTests(unittest.TestCase):
+    def test_legacy_modes_migrate_without_mutating_links(self):
+        run_web('''
+            import assert from "node:assert/strict";
+            import {migrateDelivery} from "./custom/web/vae_delivery.js";
+            const old={type:"RemoteVAEDecode",widgets_values:["v","http://peer",600,"keep",false,512,64,64,8],outputs:[{type:"IMAGE",links:[7]}]};
+            const current={type:"RemoteVAEDecode",properties:{remoteVaeDelivery:1},widgets_values:["new"]};
+            const named={type:"RemoteVAEDecodeAudio",widgets_values:{vae_name:"audio"},outputs:[{type:"AUDIO"}]};
+            const withButtons={type:"RemoteVAEDecode",widgets_values:[...old.widgets_values,null,null]};
+            const graph={nodes:[old,current,withButtons],definitions:{subgraphs:[{nodes:[named]}]}};
+            migrateDelivery(graph); migrateDelivery(graph);
+            assert.equal(old.widgets_values[9],"tensor");
+            assert.deepEqual(old.outputs[0].links,[7]); assert.equal(old.outputs[1].type,"STRING");
+            assert.equal(old.widgets_values.length,14);
+            assert.deepEqual(withButtons.widgets_values,old.widgets_values);
+            assert.equal(named.widgets_values.output_mode,"tensor");
+            assert.deepEqual(current.widgets_values,["new"]);
+        ''')
+
+    def test_mode_switch_restores_advanced_fields_and_preparation_is_not_serialized(self):
+        run_web('''
+            import assert from "node:assert/strict";
+            import {applyDelivery} from "./custom/web/vae_delivery.js";
+            import {app} from "./scripts/app.js";
+            await import("./custom/web/preparation.js");
+            const mode={name:"output_mode",value:"shared"};
+            const tile={name:"tile_size",advanced:true};
+            const fps={name:"fps"};
+            const node={type:"RemoteVAEDecode",showAdvanced:true,widgets:[mode,tile,fps],outputs:[{},{}],
+                addWidget(){const widget={};this.widgets.push(widget);return widget;}};
+            app.extensions[0].nodeCreated(node);
+            assert.equal(node.widgets.at(-1).serialize,false);
+            applyDelivery(node); assert.equal(tile.hidden,true); assert.equal(fps.hidden,false);
+            mode.value="tensor"; applyDelivery(node);
+            assert.equal(tile.hidden,false); assert.equal(fps.hidden,true);
+            assert.match(node.outputs[1].label,/비활성/);
+        ''', app='export const app={extensions:[],registerExtension(extension){this.extensions.push(extension)}};')
+
+    def test_old_connection_failure_cannot_overwrite_a_new_success(self):
+        run_web('''
+            import assert from "node:assert/strict";
+            import {checkDelivery} from "./custom/web/vae_delivery.js";
+            import {api} from "./scripts/api.js";
+            const status={dataset:{}};
+            const node={widgets:[{name:"server_url",value:"http://peer"}],
+                _deliveryPanel:{querySelector(){return status;}}};
+            let reject;
+            api.fetchApi=()=>new Promise((_,r)=>reject=r);
+            const first=checkDelivery(node);
+            api.fetchApi=async()=>({ok:true,json:async()=>({root:"/shared"})});
+            await checkDelivery(node);
+            reject(new Error("old failure")); await first;
+            assert.equal(status.dataset.state,"ready");
+        ''',api='export const api={};')
