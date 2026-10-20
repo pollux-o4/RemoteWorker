@@ -1,7 +1,6 @@
 """Cancellation and foreground priority with linked, always-refresh I2V."""
-import json
 import time
-from e2e_i2v_preparation import graph,request,wait_jobs,create_fixtures,CALLER,PEER,ROOT
+from e2e_i2v_preparation import graph,request,wait_jobs,create_fixtures,CALLER
 
 
 def empty_queue():

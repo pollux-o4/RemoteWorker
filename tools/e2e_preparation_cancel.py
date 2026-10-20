@@ -1,7 +1,7 @@
 """Cancel lookahead while preserving the currently sampling development job."""
 import json
 import time
-from e2e_preparation import request, workflow, CALLER, PEER, ROOT
+from e2e_preparation import request, workflow, CALLER, ROOT
 
 for attempt in range(60):
     try:
