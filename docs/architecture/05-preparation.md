@@ -127,3 +127,5 @@ flowchart TB
 - 실제 GPU: MiniMax H3 · 64 step의 잔여 2 step 웜업 · 96×96·0.100초 MP4
 - 실측 기록: `GenRel/dev/remote-preparation-amd/refactor-validation/`
 - 선두 변경: B 선계산 취소·A/C/B 완료 · C/B 각 1회 handoff 소비·잔류 0
+
+- 정적 검사: `uvx --from ruff==0.17.1 ruff check .` · `pyproject.toml` F 규칙 · 동적 등록용 export 보존
