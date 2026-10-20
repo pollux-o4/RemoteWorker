@@ -1,8 +1,11 @@
 """Real CPU mux: publication, retry and cleanup use actual MP4/WAV files."""
 import os
+from array import array
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -34,6 +37,9 @@ class SharedMuxTests(unittest.TestCase):
         result = mux.combine(*map(str, self.sources))
         info = mux.probe(Path(result['path']))
         self.assertEqual({s['codec_type'] for s in info['streams']}, {'video', 'audio'})
+        waveform = array('f', subprocess.check_output(['ffmpeg','-v','error','-i',result['path'],
+            '-map','0:a:0','-ac','1','-f','f32le','pipe:1']))
+        self.assertGreater(max(map(abs, waveform)), 0.01)
         self.assertTrue(all(not path.exists() for path in self.sources))
         stamp = Path(result['path']).stat().st_mtime_ns
         self.assertEqual(mux.combine(*map(str, self.sources)), result)
@@ -66,6 +72,18 @@ class SharedMuxTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'cancelled'):
             mux.combine(*map(str, self.sources), interrupt=cancel)
         self.assertTrue(all(path.is_file() for path in self.sources))
+
+    def test_cancel_terminates_the_active_encoder_process(self):
+        calls = 0
+        def cancel():
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError('cancelled')
+        started = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, 'cancelled'):
+            mux.run([sys.executable, '-c', 'import time; time.sleep(10)'], cancel)
+        self.assertLess(time.monotonic() - started, 2)
 
     def test_migration_preserves_save_video_branch_and_uses_file_outputs(self):
         run_web('''
