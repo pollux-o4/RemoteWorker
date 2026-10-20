@@ -20,7 +20,7 @@ flowchart TB
 
 ## 소스 구조
 
-- [공유 파일 결합·최종화](architecture/07-file-finalization.md): 경로 입력·영상 streamcopy·AAC·원자 발행·소비 파일 정리
+- [공유 파일 결합·최종화](contracts/file-finalization.md): 경로 입력·영상 streamcopy·AAC·원자 발행·소비 파일 정리
 
 ```text
 __init__.py                 ComfyUI 진입점
@@ -57,17 +57,17 @@ tools/                      격리 인스턴스 스모크 검사
 | 프로필 스키마·저장 | [`remoteworker/prompt/profiles.py`](../remoteworker/prompt/profiles.py) | `tests/test_remote_prompt_enhancer.py`, `tests/test_routes.py` |
 | 브라우저 선택값·프로필 폼·소켓 | [`web/remote_choices.js`](../web/remote_choices.js), [`web/remote_profiles.js`](../web/remote_profiles.js), [`web/remote_profile_dialog.js`](../web/remote_profile_dialog.js), [`web/remote_sockets.js`](../web/remote_sockets.js) | `tests/test_web_choices.py`, `tests/test_web_sockets.py` |
 
-| 자동 준비·decode 진입 | [`preparation/`](../remoteworker/preparation/) | `tests/test_preparation_contracts.py`, `tests/test_scheduler_policy.py` |
+| 자동 준비·decode 진입 | [`preparation/`](../remoteworker/preparation) | `tests/test_preparation_contracts.py`, `tests/test_scheduler_policy.py` |
 
 ## 자동 준비 확장
 
-- [큐·CPU 입력·일회 handoff·콜드 스타트·웜업](architecture/05-preparation.md)
+- [큐·CPU 입력·일회 handoff·콜드 스타트·웜업](contracts/preparation.md)
 - 등록 노드의 준비 역할 자동 발견·큐 계획·실행 컨텍스트·정책·전송 경계: 상세 C3/C4 참조
 
 ## 공유 파일 영상 저장
 
-- [C2~C4 · 공유 latent·peer MP4 저장·ack 후 임시 삭제](architecture/06-shared-video.md)
+- [C2~C4 · 공유 latent·peer MP4 저장·ack 후 임시 삭제](contracts/shared-video.md)
 - 소유: `vae/shared_video.py` · `shared_store.py` · `worker.py` · `schema.py`
 - 검증: `tests/test_shared_vae_video.py` · `tools/e2e_vae.py --mode shared`
 
-- [AMD 로컬 실행·원격 디코딩 파이프라인](architecture/08-pipeline.md): 로컬 슬롯 1개·최대 실행 2개·MODEL 재사용·원래 작업 ID의 미리보기/취소
+- [AMD 로컬 실행·원격 디코딩 파이프라인](contracts/pipeline.md): 로컬 슬롯 1개·최대 실행 2개·MODEL 재사용·원래 작업 ID의 미리보기/취소

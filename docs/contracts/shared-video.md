@@ -1,4 +1,4 @@
-# 공유 VAE 텐서 전달·미디어 저장 · C2~C4
+# 공유 VAE 텐서 전달·미디어 저장
 
 ## 통합 디코더 · 텐서 전달
 
@@ -62,7 +62,7 @@ flowchart TB
 | `core/artifacts.py` | `successful_outputs` · peer 성공 상태·오류 해석 |
 | `preparation/plan.py`, `integration.py` | `RemoteVAEVideo` 디코더 등록·VAE 준비·`latent` 선실행 제외 |
 
-## C4 · 발행·완료 확인
+## 발행·완료 확인
 
 ```mermaid
 flowchart TB

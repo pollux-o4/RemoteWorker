@@ -30,4 +30,4 @@ flowchart TB
 
 endpoint·모델 선택: 노드 입력, 로컬 기본값 선택 적용. GPU·포트·설치 경로: 로컬 배치 문서.
 
-공유 디스크 영상 경로·완료 계약: [공유 영상 저장](06-shared-video.md).
+공유 디스크 영상 경로·완료 계약: [공유 영상 저장](../contracts/shared-video.md).

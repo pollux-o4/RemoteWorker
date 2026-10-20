@@ -35,7 +35,7 @@ sequenceDiagram
 | `preparation/coordinator.py` | 현재 로컬 작업 우선 관측·다음 CLIP lookahead·파이프라인 중 dummy 웜업 제외 |
 | `web/scheduler_view.js`·`preparation.js` | 로컬/원격/결과 준비 완료 단계·원래 작업 ID·메모리 보류 표시 |
 
-## C4 · 실행 상태 계약
+## 실행 상태 계약
 
 - 슬롯 반환 이전: 다음 선두 작업 캡처·MODEL 재사용 정보 발행·native model tracker의 현재 사용 예약 해제
 - 보존 상태: client ID·현재 node/prompt ID·workflow metadata·progress registry·RAM cache callback/headroom·미리보기 방식·GraphBuilder prefix·model tracker 참조

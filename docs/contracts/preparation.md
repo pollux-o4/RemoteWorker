@@ -2,7 +2,7 @@
 
 ## 실행 정책
 
-- [AMD 파이프라인](08-pipeline.md) 활성 시: 다음 CLIP lookahead 유지·실제 VAE 디코딩으로 dummy 웜업 대체·원격 대기 중 다음 작업 실행
+- [AMD 파이프라인](pipeline.md) 활성 시: 다음 CLIP lookahead 유지·실제 VAE 디코딩으로 dummy 웜업 대체·원격 대기 중 다음 작업 실행
 - 아래 2 step 웜업 정책: 파이프라인 비활성 host의 실행 경로
 
 
@@ -87,7 +87,7 @@ flowchart TB
 - 제외: OS page cache drop·swapoff·활성 모델 강제 unload
 - 지연 tradeoff: 늦은 다음 CLIP의 완료 대기로 현재 영상 출력 지연 가능 · CLIP→VAE 전환 순서 우선
 
-## C4 · 코드 책임
+## 코드 책임
 
 | 소스 | 소유 책임 |
 | --- | --- |
@@ -109,7 +109,7 @@ flowchart TB
 | `vae/warmup.py`·`vae/worker.py` | ready receipt·고정 dummy decode |
 | `web/preparation.js`·`scheduler_view.js` | 상태 창·step 구간·다음 CLIP 우선 설명 |
 
-## C4 · 호출 의존성
+## 호출 의존성
 
 ```mermaid
 flowchart TB

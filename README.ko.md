@@ -89,7 +89,7 @@ REMOTEWORKER_CONFIG="" PYTHONPATH=/path/to/ComfyUI:. python -m unittest discover
 - 다음 선두 작업의 원격 conditioning 1개 lookahead · 지원 CPU 연결 입력·`always_refresh` 일회 전달
 - 샘플링 2 step 이하에서 VAE 웜업 · 다음 conditioning 미준비 시 VAE보다 CLIP 우선
 - 준비 신호 미연결 상태 기본 지원 · 수동 준비 신호는 명시적 순서 지정용
-- [실행 정책·큐·취소·메모리·코드 책임](docs/architecture/05-preparation.md)
+- [실행 정책·큐·취소·메모리·코드 책임](docs/contracts/preparation.md)
 - 상태 확인: 사이드바 자동 준비 → 자동 준비 상태
 - 자동 준비 제외: `REMOTEWORKER_AUTOPREPARE=0`
 
@@ -99,4 +99,4 @@ REMOTEWORKER_CONFIG="" PYTHONPATH=/path/to/ComfyUI:. python -m unittest discover
 
 `샘플러 → 공유 VAE latent 저장 → 원격 VAE 영상 저장 · 공유 파일`
 
-처리 서버에서 디코딩·MP4 저장을 끝낸 뒤 경로만 반환합니다. 호출 서버가 최종 파일을 확인한 후 임시 latent를 삭제하며, 실패하면 보존합니다. H3 결합 latent의 음성을 포함하려면 영상 저장 노드의 `audio_vae_name`에 처리 서버의 오디오 VAE 모델명을 입력하세요. 재시도 시 `request_id`에 실패한 작업 ID를 입력하면 됩니다. [저장·완료·재시도 계약](docs/architecture/06-shared-video.md)
+처리 서버에서 디코딩·MP4 저장을 끝낸 뒤 경로만 반환합니다. 호출 서버가 최종 파일을 확인한 후 임시 latent를 삭제하며, 실패하면 보존합니다. H3 결합 latent의 음성을 포함하려면 영상 저장 노드의 `audio_vae_name`에 처리 서버의 오디오 VAE 모델명을 입력하세요. 재시도 시 `request_id`에 실패한 작업 ID를 입력하면 됩니다. [저장·완료·재시도 계약](docs/contracts/shared-video.md)

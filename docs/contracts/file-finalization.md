@@ -1,4 +1,4 @@
-# 공유 영상·음성 최종화 · C3~C4
+# 공유 영상·음성 최종화
 
 ```mermaid
 flowchart LR

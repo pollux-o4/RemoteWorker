@@ -68,7 +68,7 @@ flowchart TB
 
 ## 자동 준비
 
-- [입력 해석·큐 스케줄링·일회 handoff·웜업 코드](05-preparation.md)
+- [입력 해석·큐 스케줄링·일회 handoff·웜업 코드](../contracts/preparation.md)
 - 노드 소유 준비 계약의 자동 발견·CLIP 우선·잔여 2 step VAE 준비·요청별 취소·일회 전달
 
 ## 공유 파일 영상 경로
@@ -78,10 +78,10 @@ flowchart TB
 - `vae/delivery.py`: 통합 디코더 모드 분기·양방향 공유 접근 검사
 - `vae/worker.py`: 네이티브 VAE·영상 인코딩
 - `vae/schema.py`: caller/worker 영상·타일 설정 정본
-- C2~C4 상세: [공유 latent → 영상](06-shared-video.md)
+- C2~C4 상세: [공유 latent → 영상](../contracts/shared-video.md)
 
 - Qwen 모델 선택: peer 파일명 기준 경로 해석·누락 선택 보존 · [C4 계약](04-code.md#qwen-원격-모델-선택)
 
-- 통합 원격 VAE: HTTP/공유 임시 파일의 동일 텐서 출력 · 최종 미리보기·저장 후속 노드 소유 · [공유 전송 C4](06-shared-video.md#통합-디코더--텐서-전달)
+- 통합 원격 VAE: HTTP/공유 임시 파일의 동일 텐서 출력 · 최종 미리보기·저장 후속 노드 소유 · [공유 전송](../contracts/shared-video.md#통합-디코더--텐서-전달)
 
-- [파이프라인 C2~C4](08-pipeline.md): native worker adapter·로컬 실행 슬롯·원격 대기·MODEL/LoRA 재사용·개별 취소
+- [파이프라인 계약](../contracts/pipeline.md): native worker adapter·로컬 실행 슬롯·원격 대기·MODEL/LoRA 재사용·개별 취소
