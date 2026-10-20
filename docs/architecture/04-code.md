@@ -167,3 +167,5 @@ flowchart TB
 - [전송·재시도·정리 계약](06-shared-video.md#통합-디코더--텐서-전달)
 
 - [파이프라인 C2~C4](08-pipeline.md): native worker adapter·로컬 실행 슬롯·원격 대기·MODEL/LoRA 재사용·개별 취소
+
+- CPU 미리보기 선발행·native 완료와의 분리: `pipeline/previews.py::Previews` · [파이프라인 C4](08-pipeline.md)

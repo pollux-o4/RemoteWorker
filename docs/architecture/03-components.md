@@ -85,3 +85,5 @@ flowchart TB
 - 통합 원격 VAE: HTTP/공유 임시 파일의 동일 텐서 출력 · 최종 미리보기·저장 후속 노드 소유 · [공유 전송 C4](06-shared-video.md#통합-디코더--텐서-전달)
 
 - [파이프라인 C2~C4](08-pipeline.md): native worker adapter·로컬 실행 슬롯·원격 대기·MODEL/LoRA 재사용·개별 취소
+
+- 원격 결과의 직접 연결 CPU 미리보기: GPU 재입장 이전 원래 작업 이벤트 발행·후속 저장과 완료 이력의 native 소유 · [파이프라인](08-pipeline.md)

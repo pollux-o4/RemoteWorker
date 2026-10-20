@@ -10,6 +10,10 @@ class Job:
     executor: object
     cancel: Event = field(default_factory=Event)
     phase: str = "local"
+    extra: dict = field(default_factory=dict)
+    outputs: list = field(default_factory=list)
+    previews: dict = field(default_factory=dict)
+    preview_nodes: list = field(default_factory=list)
 
 
 class Slots:
@@ -39,7 +43,7 @@ class Slots:
                 self.active = None
             self.thread.job = None
 
-    def remote(self, operation):
+    def remote(self, operation, completed=None):
         job = getattr(self.thread, "job", None)
         if job is None:
             return operation()
@@ -49,7 +53,10 @@ class Slots:
             self.active = None
         self.lock.release()
         try:
-            return operation()
+            result = operation()
+            if completed is not None:
+                completed(result, saved)
+            return result
         finally:
             with self.guard:
                 self.ready += 1
@@ -65,4 +72,4 @@ class Slots:
     def status(self):
         with self.guard:
             return {"enabled": True, "capacity": self.capacity, "local_prompt_id": self.active,
-                    "jobs": [{"prompt_id": j.prompt_id, "phase": j.phase} for j in self.jobs.values()]}
+                    "jobs": [{"prompt_id": j.prompt_id, "phase": j.phase, "preview_nodes": list(j.preview_nodes)} for j in self.jobs.values()]}

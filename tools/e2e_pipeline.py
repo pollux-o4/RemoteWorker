@@ -66,3 +66,54 @@ for endpoint in ('interrupt','jobs'):
  assert h[1]['status']['status_str']=='success',h[1]
  assert h[1]['outputs']['p']['tag']==['B']
  print('PASS targeted '+endpoint+' cancellation: waiting A interrupted; sampling B preview succeeds',flush=True)
+
+# The native preview must reach its original websocket client during B's long local node.
+import asyncio
+import aiohttp
+async def check_early_preview():
+ client_id = 'early-preview-' + uuid.uuid4().hex
+ session = aiohttp.ClientSession()
+ ws = await session.ws_connect(base.replace('http', 'ws', 1) + '/ws?clientId=' + client_id)
+ preview_ids = []
+ for tag, delay in [('early-A', 0.1), ('long-B', 4.0)]:
+  graph = {
+   's': {'class_type': 'PipelineSampler', 'inputs': {'tag': tag, 'delay': delay}},
+   'd': {'class_type': 'RemoteVAEDecode', 'inputs': {'samples': ['s', 0], 'vae_name': 'test.vae',
+          'server_url': 'http://127.0.0.1:18299', 'timeout_seconds': 30, 'memory_policy': 'keep',
+          'output_mode': 'tensor', 'tiled': False, 'tile_size': 512, 'overlap': 64,
+          'temporal_size': 64, 'temporal_overlap': 8}},
+   'p': {'class_type': 'PreviewImage', 'inputs': {'images': ['d', 0]}}}
+  preview_ids.append(req('/prompt', {'prompt': graph, 'client_id': client_id})['prompt_id'])
+ try:
+  end = time.monotonic() + 10
+  while time.monotonic() < end:
+   message = await ws.receive(timeout=10)
+   message = message.data
+   if not isinstance(message, str): continue
+   message = json.loads(message)
+   data = message.get('data', {})
+   if message['type'] == 'executed' and data.get('node') == 'p' and data.get('prompt_id') == preview_ids[0]:
+    early_image = data['output']['images'][0]
+    from urllib.parse import urlencode
+    async with session.get(base + '/view?' + urlencode({k: early_image[k] for k in ('filename', 'subfolder', 'type')})) as image:
+     assert image.status == 200
+     assert (await image.read()).startswith(b'\x89PNG'), 'preview file unavailable'
+    status = req('/remoteworker/preparation')['pipeline']
+    assert status['local_prompt_id'] == preview_ids[1], status
+    assert not req('/history/' + preview_ids[1]), 'B completed before A preview'
+    assert any(j['prompt_id'] == preview_ids[0] and j.get('preview_nodes') == ['p'] for j in status['jobs']), status
+    break
+  else: raise AssertionError('native preview never arrived during next sampling')
+ finally:
+  await ws.close()
+  await session.close()
+ while time.monotonic() < end:
+  histories = [req('/history/' + pid).get(pid) for pid in preview_ids]
+  if all(histories): break
+  time.sleep(.1)
+ for history in histories:
+  assert history['status']['status_str'] == 'success', history
+ assert all(histories[0]['outputs']['p']['images'][0][key] == early_image[key]
+            for key in ('filename', 'subfolder', 'type')), 'preview was encoded twice'
+ print('PASS native PreviewImage websocket arrives during B sampling; same temp file retained in A history', flush=True)
+asyncio.run(check_early_preview())

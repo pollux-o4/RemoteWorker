@@ -18,6 +18,7 @@ class ComfyHost:
         self.last_gc = 0
         self.pending_cancel = set()
         self.admission = None
+        self.previews = None
 
     def status(self):
         return {**self.slots.status(), "admission": self.admission, "model_reuse_hits": self.reuse.hits}
@@ -85,8 +86,18 @@ class ComfyHost:
         def call():
             with cancellation_scope(job.cancel.is_set, caller_interrupt=False):
                 return operation()
+        from comfy_execution.utils import get_executing_context
+        context = get_executing_context()
+        decoder_id = context.node_id if context else None
+        def completed(result, saved):
+            if self.previews and decoder_id is not None:
+                try:
+                    self.previews.publish(job, saved["progress"].dynprompt, decoder_id,
+                        result, job.extra, job.outputs, list_index=context.list_index)
+                except Exception:
+                    logging.getLogger(__name__).exception("Early preview unavailable; native output retained")
         try:
-            return self.slots.remote(call)
+            return self.slots.remote(call, completed=completed)
         except RequestCancelled as exc:
             raise models.InterruptProcessingException() from exc
 
@@ -125,6 +136,11 @@ class ComfyHost:
         from aiohttp import web
         from comfy_execution.cache_provider import register_cache_provider
         register_cache_provider(self.reuse)
+        from .previews import Previews
+        from comfy_execution.utils import get_executing_context
+        self.previews = Previews(self.entry.nodes.PreviewImage, self.entry.nodes.NODE_CLASS_MAPPINGS,
+            self.server.send_sync, lambda: getattr(self.slots.thread, "job", None), get_executing_context)
+        self.previews.install()
         self.queue.interrupt_if_running = self.cancel
         @web.middleware
         async def interrupt(request, handler):
@@ -194,6 +210,7 @@ class ComfyHost:
                     self.server.last_prompt_id = prompt_id
                     self.server.workflow_metadata = prompt[3].get("workflow_metadata", {})
                     extra = dict(prompt[3], **prompt[5])
+                    job.extra, job.outputs = extra, prompt[4]
                     try:
                         with self.queue.mutex:
                             cancelled = prompt_id in self.pending_cancel or job.cancel.is_set()

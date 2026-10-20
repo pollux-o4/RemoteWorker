@@ -11,13 +11,15 @@ sequenceDiagram
     A->>N: 다음 작업 B conditioning 우선 준비
     A->>N: A 실제 VAE 디코딩
     Q->>A: 작업 B 모델 준비·샘플링
-    N-->>A: A IMAGE/AUDIO · 로컬 슬롯 재입장
+    N-->>A: A IMAGE/AUDIO
+    A-->>Q: 직접 연결 PreviewImage · CPU 임시 미리보기 즉시 발행
+    A->>A: 로컬 슬롯 재입장
     A-->>Q: A 후속 미리보기·저장·원래 ID 완료
     A->>N: B 실제 VAE 디코딩
 ```
 
 - 활성 조건: `CLUSTER_RUNTIME=amd`·`REMOTEWORKER_PIPELINE != 0`·호환되는 Comfy 실행 상태 계약
-- 같은 프로세스의 native PromptExecutor 2개 · 로컬 GPU 실행 슬롯 1개 · 원격 I/O 구간만 슬롯 반환
+- 같은 프로세스의 native PromptExecutor 2개 · 로컬 GPU 실행 슬롯 1개 · 원격 I/O·직접 연결 CPU 미리보기 구간의 슬롯 반환
 - 큐 정본·prompt ID·history·민감 extra data 필터: native PromptQueue 유지
 - 다음 큐 인출: 로컬 슬롯 확보 후 · 최대 실행 작업 2개 · 원격 결과 준비 완료 작업의 재입장 우선
 - MemAvailable 2 GiB 미만: 다음 작업 인출 보류 · 현재 원격 작업 완료 경로 유지
@@ -30,6 +32,7 @@ sequenceDiagram
 | `pipeline/__init__.py` | GenRel AMD 활성 조건·native host 계약 검사·worker 설치 |
 | `pipeline/slots.py` | 로컬 소유권·원격 대기 중 반환·결과 준비 후 재입장·최대 2개 작업 상태 |
 | `pipeline/host.py` | native executor/cache 구성·큐 완료 이력·실행 상태 저장/복원·취소·유휴 정리 |
+| `pipeline/previews.py` | 직접 연결 native PreviewImage의 CPU 임시 PNG·원래 prompt/client 이벤트·재입장 시 UI 재사용 |
 | `pipeline/reuse.py` | native 입력 signature 기반 MODEL 출력의 약한 참조 재사용·16개 키 상한 |
 | `preparation/integration.py` | 준비된 conditioning의 peer gate 없는 소비·실제 decoder에서 슬롯 반환 |
 | `preparation/coordinator.py` | 현재 로컬 작업 우선 관측·다음 CLIP lookahead·파이프라인 중 dummy 웜업 제외 |
@@ -50,13 +53,18 @@ sequenceDiagram
 - native cache provider의 지연 on_store: 원격 대기 직전 native cache에서 약한 참조 발행 · 동기 노드의 event loop 대기 이전 재사용 가능
 - 모델 첫 준비·다른 모델/LoRA·메모리 퇴거: 초기화 비용 잔존
 - `/interrupt`·`/api/jobs/{id}/cancel`: 원격 대기 작업의 Event 또는 현재 로컬 작업의 native interrupt 선택 · 타 작업 전파 제외
+- 조기 미리보기: decoder 출력 0의 CPU IMAGE → 직접 연결 native `PreviewImage` · 실행 출력의 조상 집합만 대상 · 원래 prompt/client/display node ID로 `executed` 발행 · client ID 없는 API 작업의 broadcast 제외
+- 조기 미리보기 상태: GPU 슬롯·전역 progress/model tracker·최종 저장 변경 없음 · 작업별 UI만 보관 · native 노드 재실행 시 임시 파일 재인코딩 없이 UI 재사용
+- 중간 변환·커스텀 미리보기·영상 조립·최종 저장: native 후속 실행 유지 · 미리보기 선발행으로 성공 history 조기 기록 금지
+- 조기 미리보기 실패·취소: 선발행 생략·native 실행/취소 경로 유지
 - 완료: 실제 후속 노드 실행 뒤에만 native `task_done`·history 성공/실패 · 전경 완료 event의 원래 prompt/client ID 유지
 - 모델 unload·`/free`·GC·asset scan 재개: 모든 파이프라인 작업 종료 후 로컬 슬롯 안에서 수행
 - 호환 계약 미충족: 기존 worker 유지 · `REMOTEWORKER_PIPELINE=0`으로 기존 실행 경로 선택 가능
 
 ## 상태·검증 경계
 
-- `/remoteworker/preparation.pipeline`: `enabled`·`capacity`·`local_prompt_id`·작업별 `local/remote/ready`·`admission`·`model_reuse_hits`
+- `/remoteworker/preparation.pipeline`: `enabled`·`capacity`·`local_prompt_id`·작업별 `local/remote/ready`·`preview_nodes`·`admission`·`model_reuse_hits`
+- `tests/test_pipeline_previews.py`: 다음 로컬 실행 중 CPU 미리보기·원래 client ID·단일 인코딩·부분 실행/취소/변환/최종 저장 경계
 - `tests/test_pipeline_slots.py`: 원격 대기 중 다음 샘플링·예외 후 로컬 소유권 복구·weak MODEL 재사용·설정 변경·UI 단계
 - `tests/fixtures/pipeline_nodes`: CPU 전용 native 통합 fixture · `REMOTEWORKER_PIPELINE_FIXTURE=1` 명시 필요 · 운영 등록 제외
 - `tools/e2e_pipeline.py`: fixture 서버의 원본 큐·미리보기 ID·처리 중첩·MODEL 재사용·설정 변경·대기 작업 개별 취소
