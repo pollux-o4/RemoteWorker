@@ -7,6 +7,34 @@ from web_harness import REMOTE_MINIMAX_H3, REMOTE_MINIMAX_H3_IMAGE_TO_VIDEO, run
 
 
 class WebChoicesTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "Node.js required")
+    def test_qwen_refresh_warns_without_replacing_missing_model(self):
+        run_web("""
+import assert from 'node:assert/strict';
+import {refreshPeerChoices} from './custom/web/remote_qwen_image21.js';
+const target={name:'remote_text_encoder',value:'missing',options:{}};
+const node={widgets:[{name:'server_url',value:'http://peer'}, {name:'timeout_seconds',value:10},target]};
+const button={};
+await refreshPeerChoices(node,button,'encoder');
+assert.equal(target.value,'missing');
+assert.deepEqual(target.options.values,['available']);
+assert.match(button.name,/다시 선택/);
+""", api="export const api={fetchApi:async()=>({ok:true,json:async()=>({clip_name:['available']})})};")
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js required")
+    def test_peer_model_selection_preserves_missing_and_resolves_separators(self):
+        result = run_web(r"""
+import assert from 'node:assert/strict';
+import {resolvePeerModelChoice as select} from './custom/web/remote_choices.js';
+assert.equal(select('nvmes\\qwen', ['first', 'nvmes/qwen']), 'nvmes/qwen');
+assert.equal(select('missing', ['first']), 'missing');
+assert.equal(select('A/model', ['a/model']), 'A/model');
+assert.equal(select('a\\b/c', ['a/b/c', 'a/b\\c']), 'a\\b/c');
+assert.equal(select('a/b', ['a/b', 'a\\b']), 'a/b');
+assert.equal(select('', ['first']), 'first');
+""")
+        self.assertEqual(0, result.returncode)
+
     @unittest.skipUnless(
         shutil.which("node"),
         "Node.js is needed for the browser-independent JS contract test",

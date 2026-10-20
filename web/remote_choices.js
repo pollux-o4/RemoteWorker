@@ -30,6 +30,13 @@ export function cleanOptions(values, name) {
     return cleaned;
 }
 
+export function resolvePeerModelChoice(current, choices) {
+    if (choices.includes(current)) return current;
+    if (typeof current !== "string" || !current) return choices[0];
+    const matches = choices.filter(name => name.replaceAll("\\", "/") === current.replaceAll("\\", "/"));
+    return matches.length === 1 ? matches[0] : current;
+}
+
 export function normalizeRemoteOptions(payload) {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
         throw new Error("원격 CLIP 응답 형식이 올바르지 않습니다");

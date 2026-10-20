@@ -67,3 +67,5 @@ flowchart TB
 
 - [입력 해석·큐 스케줄링·일회 handoff·웜업 코드](05-preparation.md)
 - 실측 admission·VAE 준비 보호·요청별 취소·일회 전달
+
+- Qwen 모델 선택: peer 파일명 기준 경로 해석·누락 선택 보존 · [C4 계약](04-code.md#qwen-원격-모델-선택)

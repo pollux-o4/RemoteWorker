@@ -58,6 +58,31 @@ class FakeApi:
 
 
 class RemoteQwenImage21Tests(unittest.TestCase):
+    def test_model_resolution_rejects_missing_and_ambiguous_paths(self):
+        resolve = qwen.resolve_peer_model_name
+        self.assertEqual("a/model", resolve("a/model", ["a/model", "a\\model"], "clip_name"))
+        for selected, choices in [("missing", ["other"]), ("a\\b/c", ["a/b/c", "a/b\\c"]), ("A/model", ["a/model"])]:
+            with self.subTest(selected=selected), self.assertRaises(ValueError):
+                resolve(selected, choices, "clip_name")
+        api = FakeApi()
+        with self.assertRaises(ValueError):
+            qwen.execute(clip=qwen.ClipSelection("missing", "qwen_image", "default"),
+                         vae_name="qwen-vae.safetensors", prompt="edit", negative_prompt="", resolution=1024,
+                         negative_vision=False, frames=[FakeFrame()], request_id="request-1", api=api)
+        self.assertIsNone(api.workflow)
+        self.assertFalse(any(event[0] == "upload" for event in api.events))
+
+    def test_execute_resolves_peer_path_before_submitting(self):
+        api = FakeApi()
+        api.clip_loader_options = lambda: {"clip_name": ["nvmes/qwen.safetensors"], "clip_type": ["qwen_image"], "device": ["default"]}
+        original_require = api.require_node
+        api.require_node = lambda name: ({"input": {"required": {"vae_name": [["nvmes/vae.safetensors"]]}}} if name == "VAELoader" else original_require(name))
+        qwen.execute(clip=qwen.ClipSelection("nvmes\\qwen.safetensors", "qwen_image", "default"),
+                     vae_name="nvmes\\vae.safetensors", prompt="edit", negative_prompt="", resolution=1024,
+                     negative_vision=False, frames=[], request_id="request-1", api=api)
+        self.assertEqual("nvmes/qwen.safetensors", api.workflow["clip"]["inputs"]["clip_name"])
+        self.assertEqual("nvmes/vae.safetensors", api.workflow["vae"]["inputs"]["vae_name"])
+
     def test_workflow_preserves_native_three_output_contract_and_orders_cleanup(self):
         workflow = qwen.build_workflow(
             clip=qwen.ClipSelection("qwen-text-encoder.safetensors", "qwen_image", "default"),
