@@ -5,6 +5,8 @@ from ..core.cancellation import check_cancelled
 SAFE_TYPES = frozenset(
     {
         "LoadImage",
+        "ResizeImageMaskNode",
+        "ResolutionSelector",
         "GetImageSize",
         "ImageScaleToTotalPixels",
         "ImageScale",
@@ -64,6 +66,15 @@ class Resolver:
                             k.split(".", 1)[1]: v
                             for k, v in values.items()
                             if k.startswith("values.")
+                        },
+                    }
+                if kind == "ResizeImageMaskNode":
+                    values = {
+                        "input": values["input"],
+                        "scale_method": values["scale_method"],
+                        "resize_type": {
+                            "resize_type": values["resize_type"],
+                            **{k.split(".", 1)[1]: v for k, v in values.items() if k.startswith("resize_type.")},
                         },
                     }
                 cls = self.classes[kind]

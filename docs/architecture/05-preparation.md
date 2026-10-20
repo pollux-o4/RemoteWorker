@@ -2,6 +2,10 @@
 
 ## 실행 정책
 
+- [AMD 파이프라인](08-pipeline.md) 활성 시: 다음 CLIP lookahead 유지·실제 VAE 디코딩으로 dummy 웜업 대체·원격 대기 중 다음 작업 실행
+- 아래 2 step 웜업 정책: 파이프라인 비활성 host의 실행 경로
+
+
 | 조건 | 처리 |
 | --- | --- |
 | 샘플링 3 step 이상 남음 | 다음 conditioning 처리 · VAE 웜업 보류 |
@@ -22,6 +26,18 @@
 - `RequestConditionInput`: GenRel Draft의 CPU 문자열 입력 · `Resolver.SAFE_TYPES` 허용 · name/text → STRING 계약
 - 지원 외 입력·다음 encoder 실패·handoff 용량 초과: 상태 표시·일반 전경 재계산 경로 유지
 - 수동 warmup 연결: 자동 웜업 선택보다 우선 · 실제 decode의 다음 CLIP 우선 장벽 유지
+
+## 원격 노드의 준비 계약
+
+- 정본: 등록 노드 클래스의 `REMOTE_PREPARATION: Preparation` · 중앙 노드명 허용 목록 없음
+- `capabilities.discover`: 노드 등록 매핑 → 역할·실행 대상·입력 adapter 발견
+- encoder: 다음 선두의 실제 입력 선계산 · decoder: 현재 작업 첫 원격 VAE의 고정 dummy 준비
+- encoder 단독·decoder 단독·혼합 그래프의 동일 정책 경로 · 로컬 `VAEDecode` 제외
+- `Preparation.executor`: 네이티브 노드와 분리된 실행 서비스 지정 · 미지정 시 등록 클래스
+- `Preparation.inputs`: 저장 그래프 입력 → 실행 서비스 인자 · Qwen `images.image_N` → `image_N`
+- 전경·사전 계산: 동일 실행 서비스의 `run` 경유 · 기본값 정규화·peer gate·일회 handoff 공유
+- 작업 내 노드 식별: legacy `UNIQUE_ID`·V3 `Hidden.unique_id` → 실행 서비스 `unique_id`
+- 선언 없는 노드·미감사 GPU/LLM 조상: 자동 실행 제외 · 일반 전경 처리 유지
 
 ## C3 · 실행 협력
 
@@ -48,7 +64,7 @@ flowchart TB
 - 구동: 이벤트 wake·이벤트 합치기 · 5초 안전 재확인
 - 취소 신호: 백그라운드 준비의 전경 interrupt 소비 금지 · gate 입장 대기 중 전경 취소 확인
 - 별도 주기: 원격 요청 history polling · 상태 창 표시 중 2초 조회
-- CPU 조상: 이미지 로딩·크기·스케일·primitive·수식 허용 목록 · 모델/LLM 임의 실행 제외
+- CPU 조상: 이미지 로딩·크기·스케일·해상도 선택·primitive·수식 허용 목록 · 모델/LLM 임의 실행 제외
 - PeerGate: peer별 실행 직렬화 · 입장한 CLIP 완료 후 decode · 동일 요청 중복 선계산 방지
 - 범위: 이 호출 서버의 다음 선두·동일 peer · 외부 NVIDIA/LLM 작업의 전역 스케줄링 제외
 
@@ -75,6 +91,7 @@ flowchart TB
 
 | 소스 | 소유 책임 |
 | --- | --- |
+| `preparation/capabilities.py` | `Preparation`·등록 노드 역할 발견·실행 대상·입력 adapter |
 | `preparation/integration.py` | Comfy 등록·wrapper·decode 진입 장벽·handoff 소비 |
 | `preparation/events.py` | native 이벤트 어댑터·wake·progress 연결 |
 | `preparation/coordinator.py` | 준비 순서·decode 장벽·취소 후 재확인 |
@@ -114,18 +131,8 @@ flowchart TB
 
 ## 검증 경계
 
-- 회귀: `tests/test_preparation_contracts.py`·`test_scheduler_policy.py`·`test_scheduler_ui.py`·`test_preparation_inputs.py`
+- 회귀: `tests/test_preparation_contracts.py`·`test_scheduler_policy.py`·`test_scheduler_ui.py`·`test_preparation_inputs.py`·`test_preparation_capabilities.py`
 - 실제 GPU: `tools/e2e_scheduler.py` · 2 step 경계·3초 후 추가·2 step에서 추가·취소·선두 변경
 - 출력: MiniMax H3 연결 I2V · 96×96·3 frames·MP4 0.100초 ± 0.002초
 - 전달: 다음 실행 전 준비 완료·1회 소비 · 종료 Handoffs 0
 - 범위 제외: 긴 영상·고해상도 성능/품질 비교·실제 decode GPU 커널의 즉시 선점
-
-## 2026-10-19 리팩토링 검증
-
-- AMD·NVIDIA 각각 248 tests · 각 1 skip · 실패 0
-- 회귀 계약: 선두 재정렬·출력 도달 범위·완료 토큰 제외·중첩 실행 예외 복구·호출 기본값 일치
-- 실제 GPU: MiniMax H3 · 64 step의 잔여 2 step 웜업 · 96×96·0.100초 MP4
-- 실측 기록: `GenRel/dev/remote-preparation-amd/refactor-validation/`
-- 선두 변경: B 선계산 취소·A/C/B 완료 · C/B 각 1회 handoff 소비·잔류 0
-
-- 정적 검사: `uvx --from ruff==0.17.1 ruff check .` · `pyproject.toml` F 규칙 · 동적 등록용 export 보존

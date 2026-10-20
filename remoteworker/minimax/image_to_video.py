@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..preparation.capabilities import Preparation
+
 import hashlib
 import uuid
 from typing import Any
@@ -157,6 +159,8 @@ def execute(
 
 class RemoteMiniMaxH3ImageToVideo:
     """Run peer's MiniMaxH3ImageToVideo encoder and return caller-ready outputs."""
+
+    REMOTE_PREPARATION = Preparation("encoder")
 
     @classmethod
     def INPUT_TYPES(cls):

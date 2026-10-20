@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..preparation.capabilities import Preparation
+
 import hashlib
 import io
 import uuid
@@ -186,10 +188,16 @@ def execute(
             return tuple((blobs[name] for name in ("positive", "negative", "latent")))
 
 
+def preparation_inputs(values):
+    return {key.removeprefix("images."): value for key, value in values.items()}
+
+
 class RemoteQwenImage21Service:
     """Transport service shared by the native Comfy schema and unit tests."""
 
-    def run(self, prompt: str, negative_prompt: str, server_url: str, timeout_seconds: int, remote_text_encoder: str, vae_name: str, resolution: int, negative_vision: bool, peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY, cache_policy: str = DEFAULT_CACHE_POLICY, **images: Any) -> tuple[Any, Any, dict[str, Any]]:
+    REMOTE_PREPARATION = Preparation("encoder", inputs=preparation_inputs)
+
+    def run(self, prompt: str, negative_prompt: str, server_url: str, timeout_seconds: int, remote_text_encoder: str, vae_name: str, resolution: int, negative_vision: bool, peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY, cache_policy: str = DEFAULT_CACHE_POLICY, unique_id=None, **images: Any) -> tuple[Any, Any, dict[str, Any]]:
         _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
         _validate_policy(cache_policy, CACHE_POLICIES, "cache_policy")
         server_url, timeout_seconds, remote_text_encoder, vae_name = _validate_connection(
@@ -217,10 +225,13 @@ if comfy_io is not None:
     class RemoteQwenImage21Node(comfy_io.ComfyNode):
         """Native V3 presentation of the remote Qwen encoder contract."""
 
+        REMOTE_PREPARATION = Preparation("encoder", executor=RemoteQwenImage21Service, inputs=preparation_inputs)
+
         @classmethod
         def define_schema(cls):
             return comfy_io.Schema(
                 node_id="RemoteQwenImage21",
+                hidden=[comfy_io.Hidden.unique_id],
                 display_name="Qwen 2.1 원격 인코더",
                 category="conditioning/remote",
                 description=(
@@ -357,6 +368,7 @@ if comfy_io is not None:
             images: dict[str, Any] | None = None,
         ):
             values = RemoteQwenImage21Service().run(
+                unique_id=cls.hidden.unique_id if cls.hidden else None,
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 server_url=server_url,

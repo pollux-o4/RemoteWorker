@@ -1,4 +1,4 @@
-"""Durable shared latent handoff; delete input only after caller acknowledges video."""
+"""Shared tensor/media publication; delete inputs only after validated consumption."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -89,11 +89,17 @@ def load_latent(request_id):
 
 
 def media_path(request_id, options):
-    return request_path('outputs', request_id, 'audio.wav' if options.get('kind') == 'audio' else 'video.mp4')
+    filename = 'decoded.pt' if options.get('delivery') == 'tensor' else ('audio.wav' if options.get('kind') == 'audio' else 'video.mp4')
+    return request_path('temp' if options.get('delivery') == 'tensor' else 'outputs', request_id, filename)
+
+
+def receipt_file(request_id, options=None):
+    tensor = (options or {}).get('delivery') == 'tensor'
+    return request_path('temp' if tensor else 'outputs', request_id, 'decoded-receipt.json' if tensor else 'receipt.json')
 
 
 def read_receipt(request_id, options=None):
-    receipt_path = request_path('outputs', request_id, 'receipt.json')
+    receipt_path = receipt_file(request_id, options)
     if not receipt_path.exists():
         return None
     receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
@@ -110,7 +116,7 @@ def read_receipt(request_id, options=None):
     if (receipt.get('request_id') != request_id or receipt.get('path') != str(video)
             or (not consumed and (not video.is_file() or video.stat().st_size <= 0
                 or receipt.get('bytes') != video.stat().st_size))):
-        raise ValueError('공유 영상 결과 경로 또는 파일 크기를 확인할 수 없습니다. latent를 보존합니다.')
+        raise ValueError('공유 결과 경로 또는 파일 크기를 확인할 수 없습니다. latent를 보존합니다.')
     if options is not None and receipt.get('options') != options:
         raise ValueError('이미 완료된 작업의 설정이 다릅니다. 새 latent 저장 작업을 만드세요.')
     return receipt
@@ -127,7 +133,7 @@ def acknowledge(request_id, reported, options):
 
 
 def publish(request_id, options, encode):
-    """Commit one video with an injected encoder; replay an existing commit."""
+    """Commit one shared result with an injected writer; replay an existing commit."""
     with request_lock(request_id):
         receipt = read_receipt(request_id, options)
         if receipt is None:
@@ -142,6 +148,6 @@ def publish(request_id, options, encode):
             receipt = dict(metadata, request_id=request_id, path=str(path),
                            bytes=path.stat().st_size, options=options)
             if receipt['bytes'] == 0:
-                raise ValueError('Shared video encoder produced an empty file')
-            write_json(request_path('outputs', request_id, 'receipt.json'), receipt)
+                raise ValueError('Shared result writer produced an empty file')
+            write_json(receipt_file(request_id, options), receipt)
         return receipt

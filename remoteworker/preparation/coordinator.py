@@ -5,6 +5,7 @@ from collections import deque
 from threading import Event, Lock, Thread
 import time
 from . import plan
+from .. import pipeline
 from .actions import prefetch, prepare_vae
 from .memory import snapshot
 from ..core.cancellation import RequestCancelled
@@ -40,7 +41,12 @@ class Coordinator:
 
     def queue(self):
         queue = self.server.prompt_queue
-        return getattr(queue, "get_current_queue_volatile", queue.get_current_queue)()
+        running, pending = getattr(queue, "get_current_queue_volatile", queue.get_current_queue)()
+        from ..pipeline import status
+        active = status().get("local_prompt_id")
+        if active:
+            running = sorted(running, key=lambda item: item[1] != active)
+        return running, pending
 
     def record(self, state, **fields):
         with self.lock:
@@ -59,6 +65,7 @@ class Coordinator:
         with self.lock:
             return {
                 "enabled": True,
+                "pipeline": pipeline.status(),
                 "active": self.active
                 if self.active and self.active.get("prompt_id") in ids
                 else None,
@@ -67,10 +74,11 @@ class Coordinator:
                 "lookahead": 1,
                 "scope": "cpu_ancestors" if self.resolve else "literal_inputs",
                 "handoff_bytes": self.handoffs.bytes_used if self.handoffs else 0,
-                "vae_policy": "first_decoder",
+                "vae_policy": "real_decode_pipeline" if pipeline.runtime else "first_decoder",
                 "memory": snapshot(),
                 "scheduler": {
                     **self.scheduler.status(),
+                    "policy": "clip_first_pipeline" if pipeline.runtime else self.scheduler.status()["policy"],
                     "driver": "events",
                     "reconcile_seconds": 5,
                     "ticks": self.ticks,
@@ -106,7 +114,7 @@ class Coordinator:
         adjusted = dict(graph)
         for key, node in graph.items():
             if (
-                node.get("class_type") not in plan.DECODERS
+                node.get("class_type") not in plan.decoder_types()
                 or node.get("inputs", {}).get("warmup") is not None
             ):
                 continue
@@ -135,6 +143,9 @@ class Coordinator:
         if not self.eligible(current[1]):
             return
         self.prepare_next(current, pending)
+        from ..pipeline import runtime
+        if runtime is not None:
+            return  # Real decode replaces dummy warmup; the local slot can run the next prompt.
         decoder = self.decoder(current)
         if self.scheduler:
             following = plan.head(pending)[1] if pending else None
@@ -207,6 +218,17 @@ class Coordinator:
                 )  # Failed/unsupported next encoder falls back to normal execution.
                 raise
 
+    def encoder_started(self, prompt_id, node_id):
+        running, _ = self.queue()
+        for job in running:
+            if job[1] == prompt_id:
+                node = job[2].get(str(node_id))
+                if node is not None:
+                    token = (prompt_id, str(node_id), plan.fingerprint(node))
+                    if token not in self.done:
+                        self.done.append(token)
+                return
+
     def next_clip_missing(self, current_id, url):
         running, pending = self.queue()
         if not running or running[0][1] != current_id or not pending:
@@ -219,19 +241,25 @@ class Coordinator:
                 return True
         return False
 
-    def ensure_next_before_decode(self, url):
+    def ensure_next_before_decode(self, url, *, current_id=None, following=None):
         # A deleted/reordered next job is not an error in the current video's decoder.
         while True:
             running, pending = self.queue()
-            if not running or not pending:
+            if not running or (not pending and following is None):
                 return
-            current = running[0]
+            current = next((item for item in running if item[1] == current_id), None) if current_id else running[0]
+            if current is None:
+                return
             try:
-                self.prepare_next(current, pending, allow_after_sampling=True, peer=url)
+                candidates = [following or plan.head(pending)] if current_id else pending
+                self.prepare_next(current, candidates, allow_after_sampling=True, peer=url)
+                if current_id:
+                    return  # Prepare one captured successor, even if it has just started locally.
                 if self.next_clip_missing(current[1], url):
                     continue
                 return
             except RequestCancelled:
+                following = None
                 if not self.prompt_present(current[1]):
                     return
             except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
@@ -248,7 +276,7 @@ class Coordinator:
         selected = next((p for p in [*running, *pending] if p[1] == following_id), None)
         if selected is None:
             return True
-        if plan.job_graph(selected) != expected:
+        if plan.graph_contract(plan.job_graph(selected)) != plan.graph_contract(expected):
             return True
         if active == following_id:
             return False

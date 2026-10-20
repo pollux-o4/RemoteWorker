@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..preparation.capabilities import Preparation
+
 import hashlib
 import io
 import uuid
@@ -207,6 +209,8 @@ def execute_strategy_bytes(
 class RemoteConditioning:
     """ComfyUI master node: prompt plus remote CLIPLoader selection to CONDITIONING."""
 
+    REMOTE_PREPARATION = Preparation("encoder")
+
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
@@ -238,6 +242,7 @@ class RemoteConditioning:
                 "timeout_seconds": ("INT", {"default": 120, "min": 5, "max": 1800}),
             },
             "optional": DynamicImageAndPolicyInputs(),
+            "hidden": {"unique_id": "UNIQUE_ID"},
         }
 
     RETURN_TYPES = ("CONDITIONING",)
@@ -287,6 +292,7 @@ class RemoteConditioning:
         timeout_seconds: int = 120,
         peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
         cache_policy: str = DEFAULT_CACHE_POLICY,
+        unique_id=None,
         **images: Any,
     ) -> tuple[Any]:
         try:

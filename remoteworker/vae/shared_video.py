@@ -1,5 +1,8 @@
 """Public shared-latent nodes and peer execution facade."""
+
 from __future__ import annotations
+
+from ..preparation.capabilities import Preparation
 
 from ..core.execution import completed_prompt
 from ..core.artifacts import successful_outputs
@@ -54,6 +57,8 @@ class LoadSharedVAELatent:
 
 
 class RemoteVAEVideo:
+    REMOTE_PREPARATION = Preparation("decoder", kind="image")
+
     DESCRIPTION = '공유 latent를 처리 서버에서 디코딩하고 MP4(H.264)로 저장합니다. 영상 텐서를 전송하지 않고 경로만 반환합니다. 결과 확인 후 latent 삭제; 실패 시 보존합니다.'
     CATEGORY = 'RemoteWorker/VAE'
     RETURN_TYPES = ('STRING',)

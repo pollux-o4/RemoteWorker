@@ -1,9 +1,12 @@
 """One-shot next conditioning and interruptible dummy VAE preparation."""
 
 import time
+from copy import deepcopy
+from .plan import graph_contract
 from .gates import gate
+from .capabilities import registered
 from .invocation import call_values, speculative_call
-from ..core.cancellation import cancellation_scope, check_cancelled, RequestCancelled
+from ..core.cancellation import cancellation_scope, check_cancelled, RequestCancelled, caller_interrupt_enabled
 
 
 def prefetch(
@@ -18,10 +21,13 @@ def prefetch(
     *,
     allow_after_sampling=False,
 ):
+    expected = deepcopy(graph_contract(graph))
+    contract = registered()[node["class_type"]][1]
+    values = contract.inputs(values)
     url = values["server_url"]
     with gate(url).enter(speculative=True):
         if token in owner.done or owner.preparation_cancelled(
-            current[1], following[1], graph
+            current[1], following[1], expected
         ):
             return
         if not allow_after_sampling and not owner.eligible(current[1]):
@@ -40,8 +46,8 @@ def prefetch(
         try:
             # Sampling completion does not cancel an admitted CLIP. Native decode waits at the same gate.
             with speculative_call(), cancellation_scope(
-                lambda: owner.preparation_cancelled(current[1], following[1], graph),
-                caller_interrupt=allow_after_sampling,
+                lambda: owner.preparation_cancelled(current[1], following[1], expected),
+                caller_interrupt=allow_after_sampling and caller_interrupt_enabled(),
             ):
                 result = owner.encoders[node["class_type"]]().run(**values)
                 check_cancelled()

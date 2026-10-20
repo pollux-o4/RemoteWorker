@@ -6,7 +6,19 @@ const messages = {
   vae_ready: ['VAE 준비 완료', '대기 작업의 conditioning이 없으면 CLIP을 먼저 처리한 뒤 VAE로 전환합니다.'],
 };
 
-export function schedulerText(scheduler) {
+export function schedulerText(scheduler, pipeline) {
+  if (pipeline?.enabled) {
+    const jobs=pipeline.jobs || [];
+    const remote=jobs.filter(job => job.phase === 'remote');
+    const local=jobs.find(job => job.prompt_id === pipeline.local_prompt_id);
+    const ready=jobs.some(job => job.phase === 'ready');
+    const title=pipeline.admission === 'ram_pressure' ? '메모리 확보 대기'
+      : ready ? '디코딩 완료 · 미리보기 마무리 대기'
+      : local && remote.length ? '다음 작업·원격 디코딩 병행'
+      : remote.length ? '원격 디코딩 중' : local ? '모델 준비·샘플링 처리 중' : '파이프라인 대기';
+    return {title, description:'원격 디코딩 중 다음 작업 진행 · 미리보기는 원래 작업에 표시',
+      timing:jobs.map(job => `${job.prompt_id.slice(0,8)} · ${job.phase === 'remote' ? '원격 처리' : job.phase === 'ready' ? '결과 준비 완료' : '로컬 처리'}`).join(' / ')};
+  }
   const decision=scheduler?.decision;
   if (!decision?.reason) return null;
   const [title,description]=messages[decision.reason] || ['작업 상태 확인 중',''];

@@ -59,8 +59,9 @@ async function showPreparation() {
       const data = await response.json();
       if (stopped) return;
       status.textContent = data.active ? labels[data.active.state] || data.active.state : data.queue?.running ? '현재 작업 실행 중' : '자동 준비 켜짐 · 작업 대기';
-      if (Number.isFinite(data.scheduler?.vae_remaining_steps)) hint.textContent=`${data.scheduler.vae_remaining_steps} step이 남으면 VAE를 준비합니다. 대기 작업의 conditioning이 없으면 CLIP을 먼저 처리합니다.`;
-      const timing=schedulerText(data.scheduler);
+      if (data.pipeline?.enabled) hint.textContent="원격 디코딩 대기 중 다음 작업을 처리합니다. 다음 conditioning을 먼저 준비합니다.";
+      else if (Number.isFinite(data.scheduler?.vae_remaining_steps)) hint.textContent=`${data.scheduler.vae_remaining_steps} step이 남으면 VAE를 준비합니다. 대기 작업의 conditioning이 없으면 CLIP을 먼저 처리합니다.`;
+      const timing=schedulerText(data.scheduler,data.pipeline);
       schedule.hidden=!timing;
       if (timing) schedule.replaceChildren(text('strong',timing.title),text('p',timing.description),text('p',timing.timing));
       content.replaceChildren(...data.events.slice(-8).reverse().map(event => {

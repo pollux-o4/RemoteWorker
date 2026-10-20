@@ -191,7 +191,8 @@ class DeliveryBrowserContractTests(unittest.TestCase):
                 addWidget(){const widget={};this.widgets.push(widget);return widget;}};
             app.extensions[0].nodeCreated(node);
             assert.equal(node.widgets.at(-1).serialize,false);
-            applyDelivery(node); assert.equal(tile.hidden,true); assert.equal(fps.hidden,false);
+            applyDelivery(node); assert.equal(tile.hidden,false); assert.equal(fps.hidden,true);
+            assert.equal(node.outputs[0].label,"이미지");
             mode.value="tensor"; applyDelivery(node);
             assert.equal(tile.hidden,false); assert.equal(fps.hidden,true);
             assert.match(node.outputs[1].label,/비활성/);

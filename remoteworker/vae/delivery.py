@@ -36,22 +36,3 @@ def receive_probe(request_id, token):
         raise ValueError('처리 서버에서 호출 서버의 공유 파일을 읽을 수 없습니다.')
     store.write_json(path.with_name('probe-ack.json'), {'token': token})
     return {'token': token}
-
-
-def decode_shared(api, samples, vae_name, kind, server_url, timeout_seconds, memory_policy,
-                  tiled, fps, audio_vae_name, crf, request_id, warmup):
-    from .service import preflight
-    from .shared_video import execute_shared
-    from .schema import video_options
-    from comfy_execution.graph_utils import ExecutionBlocker
-    preflight(api, vae_name, 'SharedVAEVideoWorker', memory_policy)
-    if kind == 'image' and audio_vae_name:
-        preflight(api, audio_vae_name, 'SharedVAEVideoWorker')
-    check_shared(api)
-    options = video_options(vae_name, audio_vae_name if kind == 'image' else '', fps, crf, tiled, kind)
-    request_id = request_id or store.save_latent(samples)
-    path = execute_shared(api, request_id, options, server_url=server_url,
-        memory_policy=memory_policy, warmup=warmup)
-    return {'result': (ExecutionBlocker(None), path), 'ui': {
-        'shared_media': [{'request_id': request_id, 'path': path, 'kind': kind,
-                          'url': f'/remote-vae/media/{request_id}'}], 'text': [path]}}

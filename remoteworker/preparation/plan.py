@@ -3,14 +3,7 @@
 import hashlib
 import json
 
-ENCODERS = frozenset(
-    {
-        "RemoteConditioning",
-        "RemoteMiniMaxH3ReferenceEncode",
-        "RemoteMiniMaxH3ImageToVideo",
-    }
-)
-DECODERS = {"RemoteVAEDecode": "image", "RemoteVAEDecodeAudio": "audio", "RemoteVAEVideo": "image"}
+from .capabilities import encoder_types, decoder_types
 
 
 def literal_inputs(node):
@@ -38,19 +31,21 @@ def is_sampling(graph, node_id):
 
 
 def next_encoders(graph):
+    encoders = encoder_types()
     return [
         (key, node, literal_inputs(node))
         for key, node in graph.items()
-        if node.get("class_type") in ENCODERS
+        if node.get("class_type") in encoders
     ]
 
 
 def first_decoder(graph):
     # Warm only the first decoder: loading both H3 VAEs can evict the first on 8 GB.
+    decoders = decoder_types()
     candidates = [
-        (key, node) for key, node in graph.items() if node.get("class_type") in DECODERS
+        (key, node) for key, node in graph.items() if node.get("class_type") in decoders
     ]
-    candidates.sort(key=lambda item: DECODERS[item[1]["class_type"]] != "image")
+    candidates.sort(key=lambda item: decoders[item[1]["class_type"]] != "image")
     for key, node in candidates:
         values = node.get("inputs", {})
         if values.get("warmup") is not None:  # Explicit manual ordering wins.
@@ -63,7 +58,7 @@ def first_decoder(graph):
                 key,
                 values["server_url"],
                 values["vae_name"],
-                DECODERS[node["class_type"]],
+                decoders[node["class_type"]],
             )
     return None
 
@@ -102,3 +97,9 @@ def pending_encoders(pending, completed):
         token = (following[1], node_id, fingerprint(node))
         if token not in completed:
             yield following, graph, node_id, node, values, token
+
+
+def graph_contract(graph):
+    """Execution inputs only; native is_changed annotations do not change queued work."""
+    return {key: {"class_type": node.get("class_type"), "inputs": node.get("inputs", {})}
+            for key, node in graph.items()}

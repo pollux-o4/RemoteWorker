@@ -40,7 +40,7 @@ def decode_inputs(kind):
         required.update(decode_fields())
     return {"required": required, "optional": {
         "warmup": (WARMUP_TYPE, {"forceInput": True, "tooltip": "Optional manual warmup ticket."}),
-        "output_mode": (["shared", "tensor"], {"default": "shared", "tooltip": "Shared folder: save on the peer and return a file path. Tensor: return IMAGE/AUDIO for downstream processing (512 MiB limit)."}),
+        "output_mode": (["shared", "tensor"], {"default": "shared", "tooltip": "Both modes return IMAGE/AUDIO. Shared: transfer via temporary shared tensor files. Tensor: HTTP transfer (512 MiB limit)."}),
         **({name: value for name, value in video_fields().items() if name != "tiled"} if kind == "image" else {}),
         "request_id": ("STRING", {"default": "", "advanced": True, "tooltip": "Retry a retained shared job without rerunning its sampler."}),
     }}

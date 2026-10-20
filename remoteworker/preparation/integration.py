@@ -8,9 +8,15 @@ import time
 from .coordinator import Coordinator
 from .invocation import is_speculative
 from .gates import gate
-from .plan import ENCODERS, DECODERS
+from .capabilities import discover
 
 coordinator = None
+
+
+class PreparedResult(Exception):
+    def __init__(self, result):
+        self.result = result
+
 
 
 def current_prompt():
@@ -20,14 +26,15 @@ def current_prompt():
 
 
 @contextmanager
-def foreground_gate(url, decode=False):
+def foreground_gate(url, decode=False, check_wait=None):
     from ..core.transport import _raise_if_caller_interrupted
 
+    check_wait = check_wait or _raise_if_caller_interrupted
     while True:
-        _raise_if_caller_interrupted()
+        check_wait()
         if decode and coordinator:
             coordinator.ensure_next_before_decode(url)
-        with gate(url).enter(check_wait=_raise_if_caller_interrupted):
+        with gate(url).enter(check_wait=check_wait):
             if (
                 decode
                 and coordinator
@@ -50,35 +57,42 @@ def managed(function, kind=None):
         url = values.arguments.get("server_url")
         if not url or is_speculative():
             return function(*args, **kwargs)
-        with foreground_gate(url, kind in DECODERS):
-            if (
-                coordinator
-                and coordinator.handoffs
-                and (
-                    kind in ENCODERS
-                    or function.__qualname__.split(".")[0]
-                    in {c.__name__ for c in coordinator.encoders.values()}
-                )
-            ):
+        def check_prepared():
+            from ..core.transport import _raise_if_caller_interrupted
+            _raise_if_caller_interrupted()
+            if coordinator and coordinator.handoffs and kind == "encoder":
                 from .handoff import signature, unpack
-
                 key = (current_prompt(), str(values.arguments.get("unique_id")))
                 blob = coordinator.handoffs.take(key, signature(values.arguments))
                 if blob is not None:
-                    coordinator.record(
-                        "conditioning_consumed",
-                        prompt_id=key[0],
-                        node_id=key[1],
-                        peer=url,
-                    )
-                    return unpack(blob)
-            started = time.monotonic()
-            scheduler = coordinator.scheduler if coordinator else None
-            result = function(*args, **kwargs)
-            if scheduler:
-                if kind in ENCODERS:
-                    scheduler.observe_encoder(time.monotonic() - started)
-            return result
+                    coordinator.record("conditioning_consumed", prompt_id=key[0], node_id=key[1], peer=url)
+                    raise PreparedResult(unpack(blob))
+        from .. import pipeline
+        host = pipeline.runtime
+        if kind == "decoder" and host and getattr(host.slots.thread, "job", None):
+            from ..core.transport import _raise_if_caller_interrupted
+            prompt_id = current_prompt()
+            from .plan import head
+            following = head(coordinator.queue()[1]) if coordinator else None
+            def decode():
+                if coordinator:
+                    coordinator.ensure_next_before_decode(url, current_id=prompt_id, following=following)
+                with gate(url).enter(check_wait=_raise_if_caller_interrupted):
+                    return function(*args, **kwargs)
+            return host.remote(decode)
+        try:
+            with foreground_gate(url, kind == "decoder", check_prepared if kind == "encoder" else None):
+                if coordinator and kind == "encoder":
+                    coordinator.encoder_started(current_prompt(), values.arguments.get("unique_id"))
+                started = time.monotonic()
+                scheduler = coordinator.scheduler if coordinator else None
+                result = function(*args, **kwargs)
+                if scheduler:
+                    if kind == "encoder":
+                        scheduler.observe_encoder(time.monotonic() - started)
+                return result
+        except PreparedResult as ready:
+            return ready.result
 
     run._remote_preparation = True
     return run
@@ -95,9 +109,14 @@ def register(classes):
         return
     if os.environ.get("REMOTEWORKER_AUTOPREPARE", "1") == "0":
         return
-    for name in ENCODERS | DECODERS.keys():
-        if name in classes:
-            classes[name].run = managed(classes[name].run, name)
+    capabilities = discover(classes)
+    encoders = {}
+    decoders = {name for name, (_, spec) in capabilities.items() if spec.role == "decoder"}
+    for name, (cls, spec) in capabilities.items():
+        target = spec.executor or cls
+        target.run = managed(target.run, spec.role)
+        if spec.role == "encoder":
+            encoders[name] = target
 
     def warmup(url, model, kind):
         from ..vae.service import execute_warmup, peer_api
@@ -133,14 +152,14 @@ def register(classes):
 
     coordinator = Coordinator(
         server,
-        {k: v for k, v in classes.items() if k in ENCODERS},
+        encoders,
         warmup,
         available,
         sampling_now,
         resolve=lambda graph, key: Resolver(graph, nodes.NODE_CLASS_MAPPINGS).inputs(
             key,
             exclude=("samples", "warmup", "latent")
-            if graph[key]["class_type"] in DECODERS
+            if graph[key]["class_type"] in decoders
             else (),
         ),
         handoffs=Handoffs(),

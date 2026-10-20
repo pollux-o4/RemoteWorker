@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..preparation.capabilities import Preparation
+
 import uuid
 from typing import Any
 
@@ -169,6 +171,8 @@ def execute(
 
 class RemoteMiniMaxH3ReferenceEncode:
     """Mirror MiniMaxH3ReferenceToVideo inputs and return remote outputs locally."""
+
+    REMOTE_PREPARATION = Preparation("encoder")
 
     @classmethod
     def INPUT_TYPES(cls):

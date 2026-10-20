@@ -31,7 +31,7 @@ def run(api, graph):
         return successful_outputs(history, prompt_id)
 
 
-def verify_tensor(caller, peer_url, vae, kind, tiled):
+def verify_tensor(caller, peer_url, vae, kind, tiled, output_mode="tensor"):
     import torch
     peer = HttpComfyApi(peer_url, 1800)
     latent = node('EmptyMiniMaxH3LatentAV', width=32, height=32, length=5) if kind == 'audio' else node(
@@ -46,7 +46,7 @@ def verify_tensor(caller, peer_url, vae, kind, tiled):
                 server_url=peer_url, timeout_seconds=180, background=True)
             graph['decode'] = node('RemoteVAEDecodeAudio' if kind == 'audio' else 'RemoteVAEDecode',
                 samples=['latent', 0], vae_name=vae, server_url=peer_url, timeout_seconds=180,
-                warmup=['warmup', 0], memory_policy='release_after_result',
+                warmup=['warmup', 0], memory_policy='release_after_result', output_mode=output_mode,
                 **(options if kind == 'image' else {}))
         else:
             graph['vae'] = node('VAELoader', vae_name=vae)
@@ -108,44 +108,9 @@ def verify_shared(caller, peer_url, vae, audio_vae, large, tiled):
 
 
 def verify_unified(caller, peer_url, vae, audio_vae, large, kind, tiled):
-    import av
-    size, frames = (512, 175) if large and kind == 'image' else (64, 5)
-    options = dict(vae_name=vae, server_url=peer_url, timeout_seconds=1800,
-        memory_policy='release_after_result', output_mode='shared', fps=VIDEO_FPS,
-        audio_vae_name=audio_vae, crf=VIDEO_CRF, **(DECODE_DEFAULTS | {'tiled': tiled}))
-    graph = {'latent': node('EmptyMiniMaxH3LatentAV', width=size, height=size, length=frames),
-        'decode': node('RemoteVAEDecodeAudio' if kind == 'audio' else 'RemoteVAEDecode',
-            samples=['latent', 0], **options)}
-    graph['inactive'] = node('SaveRemoteVAEOutput', value=['decode', 0],
-        filename_prefix=f'remote-conditioning/{uuid.uuid4().hex}/decoded')
-    started = time.monotonic()
-    outputs = run(caller, graph)
-    assert 'inactive' not in outputs, 'Inactive tensor branch executed'
-    media = outputs['decode']['shared_media'][0]
-    request_id, path = media['request_id'], Path(media['path'])
-    assert not store.request_path('temp', request_id, 'latent.pt').exists()
-    with av.open(str(path)) as container:
-        if kind == 'image':
-            stream = container.streams.video[0]
-            assert (stream.width, stream.height, sum(1 for _ in container.decode(stream))) == (size, size, frames)
-            assert bool(container.streams.audio) == bool(audio_vae)
-            decoded_bytes = frames*size*size*12
-        else:
-            stream = container.streams.audio[0]
-            samples = sum(frame.samples for frame in container.decode(stream))
-            assert samples > 0
-            decoded_bytes = samples*len(stream.layout.channels)*4
-    before = path.stat().st_mtime_ns
-    graph['decode']['inputs']['request_id'] = request_id
-    graph['latent']['inputs'].update(width=32, height=32)
-    assert run(caller, graph)['decode']['text'] == [str(path)]
-    assert path.stat().st_mtime_ns == before
-    from urllib.request import Request, urlopen
-    with urlopen(Request(caller._server_url + media['url'], headers={'Range': 'bytes=0-31'})) as response:
-        assert response.status == 206 and len(response.read()) == 32
-    return dict(kind=kind, path=str(path), decoded_mib=decoded_bytes/1024**2,
-        latent_deleted=True, retry_without_reencoding=True, media_range=True,
-        seconds=round(time.monotonic()-started, 2))
+    if large or audio_vae:
+        raise ValueError("통합 텐서 검증은 소형 단일 VAE 대상입니다. 대용량·결합 영상 저장 검증은 --mode shared를 사용하세요.")
+    return verify_tensor(caller, peer_url, vae, kind, tiled, output_mode="shared")
 
 
 if __name__ == '__main__':

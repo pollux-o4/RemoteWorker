@@ -41,19 +41,16 @@ export function applyDelivery(node) {
     const shared = deliveryMode(node) === "shared";
     for (const widget of node.widgets || []) {
         if (["fps", "audio_vae_name", "crf", "request_id"].includes(widget.name)) {
-            widget.hidden = !shared || (!!widget.advanced && !node.showAdvanced);
+            widget.hidden = widget.name === "request_id" ? (!shared || !node.showAdvanced) : true;
         }
-        if (["tile_size", "overlap", "temporal_size", "temporal_overlap"].includes(widget.name)) widget.hidden = shared || !node.showAdvanced;
+        if (["tile_size", "overlap", "temporal_size", "temporal_overlap"].includes(widget.name)) widget.hidden = !node.showAdvanced;
     }
-    if (node.outputs?.[0]) node.outputs[0].label = shared ? "텐서 · 비활성" : (node.type === "RemoteVAEDecodeAudio" ? "오디오" : "이미지");
-    if (node.outputs?.[1]) node.outputs[1].label = shared ? "파일 경로" : "파일 경로 · 비활성";
+    if (node.outputs?.[0]) node.outputs[0].label = node.type === "RemoteVAEDecodeAudio" ? "오디오" : "이미지";
+    if (node.outputs?.[1]) node.outputs[1].label = "파일 경로 · 비활성";
     const panel = node._deliveryPanel;
     if (panel) {
         panel.hidden = !shared;
-        const linked = !!node.outputs?.[0]?.links?.length;
-        panel.querySelector("[data-hint]").textContent = linked
-            ? "공유 파일로 저장 · 기존 텐서 연결의 후속 분기는 건너뜁니다."
-            : "처리 서버에 파일 저장 · 파일 경로 출력 사용";
+        panel.querySelector("[data-hint]").textContent = "공유 임시 파일로 텐서 전달 · 미리보기·최종 저장은 후속 노드에서 처리";
     }
     node.setSize?.([Math.max(node.size?.[0] || 0, 390), node.computeSize?.()[1] || 260]);
     node.graph?.setDirtyCanvas?.(true, true);
@@ -85,34 +82,10 @@ export async function checkDelivery(node) {
 }
 
 function showResult(node, message) {
-    const result = message?.shared_media?.[0];
-    if (!result || !node._deliveryPanel) return;
-    node._deliveryResult = result;
-    const panel = node._deliveryPanel;
-    node._deliveryCheck = (node._deliveryCheck || 0) + 1;
-    const status = panel.querySelector("[role=status]");
-    status.textContent = "파일 저장 완료";
+    if (!message?.shared_transfer || !node._deliveryPanel) return;
+    const status = node._deliveryPanel.querySelector("[role=status]");
+    status.textContent = "텐서 수신 완료 · 임시 파일 정리됨";
     status.dataset.state = "ready";
-    status.title = result.path;
-    const target = panel.querySelector("[data-result]");
-    target.replaceChildren();
-    const media = document.createElement(result.kind === "audio" ? "audio" : "video");
-    media.src = api.apiURL(result.url);
-    media.controls = true;
-    media.preload = "metadata";
-    media.setAttribute("aria-label", "저장된 VAE 결과");
-    const link = document.createElement("a");
-    link.href = media.src;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "저장 파일 열기 ↗";
-    const path = document.createElement("input");
-    path.value = result.path;
-    path.readOnly = true;
-    path.setAttribute("aria-label", "최종 파일 경로");
-    path.addEventListener("focus", () => path.select());
-    target.append(media, link, path);
-    node.setSize?.([Math.max(node.size?.[0] || 0, 390), node.computeSize?.()[1] || 400]);
 }
 
 export function setupDelivery(node) {
@@ -129,24 +102,7 @@ export function setupDelivery(node) {
         node._deliveryPanel = panel;
         const dom = node.addDOMWidget("remote_vae_delivery", "custom", panel, { serialize: false, hideOnZoom: false });
         dom.serialize = false;
-        dom.computeSize = (width) => [width, panel.hidden ? 0 : panel.querySelector("video") ? 360 : panel.querySelector("audio") ? 220 : 100];
-        const finalized = (event) => {
-            if (!event.detail.sources?.includes(node._deliveryResult?.request_id)) return;
-            panel.querySelector("video, audio")?.pause();
-            const link = document.createElement("a");
-            link.href = api.apiURL(event.detail.url);
-            link.target = "_blank"; link.rel = "noopener";
-            link.textContent = "완성 영상 열기 ↗";
-            panel.querySelector("[data-result]").replaceChildren(link);
-            panel.querySelector("[role=status]").textContent = "완성 영상에 포함됨 · 중간 파일 정리됨";
-            node.setSize?.([node.size[0], node.computeSize()[1]]);
-        };
-        document.addEventListener("remote-vae:finalized", finalized);
-        const removed = node.onRemoved;
-        node.onRemoved = function () {
-            document.removeEventListener("remote-vae:finalized", finalized);
-            return removed?.apply(this, arguments);
-        };
+        dom.computeSize = (width) => [width, panel.hidden ? 0 : 100];
     }
     for (const widget of node.widgets || []) {
         if (!["output_mode", "server_url"].includes(widget.name)) continue;

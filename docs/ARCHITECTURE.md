@@ -62,10 +62,12 @@ tools/                      격리 인스턴스 스모크 검사
 ## 자동 준비 확장
 
 - [큐·CPU 입력·일회 handoff·콜드 스타트·웜업](architecture/05-preparation.md)
-- 큐 계획·실행 컨텍스트·정책·전송 경계: 상세 C3/C4 참조
+- 등록 노드의 준비 역할 자동 발견·큐 계획·실행 컨텍스트·정책·전송 경계: 상세 C3/C4 참조
 
 ## 공유 파일 영상 저장
 
 - [C2~C4 · 공유 latent·peer MP4 저장·ack 후 임시 삭제](architecture/06-shared-video.md)
 - 소유: `vae/shared_video.py` · `shared_store.py` · `worker.py` · `schema.py`
 - 검증: `tests/test_shared_vae_video.py` · `tools/e2e_vae.py --mode shared`
+
+- [AMD 로컬 실행·원격 디코딩 파이프라인](architecture/08-pipeline.md): 로컬 슬롯 1개·최대 실행 2개·MODEL 재사용·원래 작업 ID의 미리보기/취소

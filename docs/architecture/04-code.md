@@ -153,3 +153,17 @@ flowchart TB
 - `qwen.service._validate_peer_loaders`: CLIP·VAE 이름 해석 → `execute`의 workflow builder 전달
 - `web/remote_choices.js::resolvePeerModelChoice`: 동일 경로 선택 복구 · 누락·모호한 기존 선택 보존 · 빈 선택만 첫 항목 초기화
 - `web/remote_qwen_image21.js`: peer 목록 갱신·파일명 선택 · `remote_text_encoder` COMBO 입력과 로컬 `CLIP` 출력의 연결 불가
+
+## 원격 준비 역할
+
+- `preparation/capabilities.py::Preparation` · 등록 노드의 `REMOTE_PREPARATION` 발견
+- 모델별 실행 서비스·그래프 입력 adapter 소유 · 중앙 노드명 목록 제거
+- [역할·전경 실행·V3 식별·입력 제한 계약](05-preparation.md#원격-노드의-준비-계약)
+
+## 공유 텐서 전달
+
+- `vae/shared_tensor.py::execute`·`consume`·`SharedVAETensorWorker` · peer 디코딩·임시 파일 발행·CPU 수신·검증 후 정리
+- 통합 `RemoteVAEDecode`·`RemoteVAEDecodeAudio`: 직접/공유 전송 공통 IMAGE/AUDIO 출력 · 미디어 인코딩 후속 노드 소유
+- [전송·재시도·정리 계약](06-shared-video.md#통합-디코더--텐서-전달)
+
+- [파이프라인 C2~C4](08-pipeline.md): native worker adapter·로컬 실행 슬롯·원격 대기·MODEL/LoRA 재사용·개별 취소
