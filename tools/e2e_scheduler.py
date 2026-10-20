@@ -183,7 +183,7 @@ def current_cancel():
     assert any(k == "execution_interrupted" for k, _ in ah["status"]["messages"]), ah[
         "status"
     ]
-    d = complete([b], "current-cancel")
+    complete([b], "current-cancel")
     assert not request(CALLER, "/queue")["queue_pending"]
     (REPORTS / "step-policy-current-cancelled.json").write_text(
         json.dumps({"prompt_id": a, "status": ah["status"]}, indent=2)

@@ -6,7 +6,7 @@ import inspect
 import os
 import time
 from .coordinator import Coordinator
-from .invocation import call_values, is_speculative
+from .invocation import is_speculative
 from .gates import gate
 from .plan import ENCODERS, DECODERS
 

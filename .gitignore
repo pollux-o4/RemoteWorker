@@ -9,3 +9,5 @@ scratch_*.json
 remote-prompt-enhancer-profiles.json
 .env
 .env.*
+
+.ruff_cache/
