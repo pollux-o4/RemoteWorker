@@ -163,5 +163,11 @@ export function setupDelivery(node) {
     }
     const previous = node.onExecuted;
     node.onExecuted = function (message) { previous?.apply(this, arguments); showResult(node, message); };
+    const connections = node.onConnectionsChange;
+    node.onConnectionsChange = function () {
+        const result = connections?.apply(this, arguments);
+        queueMicrotask(() => applyDelivery(node));
+        return result;
+    };
     applyDelivery(node);
 }
