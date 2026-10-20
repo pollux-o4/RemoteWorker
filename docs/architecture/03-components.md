@@ -79,3 +79,5 @@ flowchart TB
 - `vae/worker.py`: 네이티브 VAE·영상 인코딩
 - `vae/schema.py`: caller/worker 영상·타일 설정 정본
 - C2~C4 상세: [공유 latent → 영상](06-shared-video.md)
+
+- Qwen 모델 선택: peer 파일명 기준 경로 해석·누락 선택 보존 · [C4 계약](04-code.md#qwen-원격-모델-선택)

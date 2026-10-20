@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-import { cleanOptions, refreshRemoteChoiceOptions } from "./remote_choices.js";
+import { cleanOptions, refreshRemoteChoiceOptions, resolvePeerModelChoice } from "./remote_choices.js";
 
 const QWEN_NODES = new Set(["RemoteQwenImage21"]);
 
@@ -26,7 +26,12 @@ export async function refreshPeerChoices(node, button, kind) {
         missingSettingsLabel: "⚠ 원격 주소를 먼저 입력하세요",
         loadingLabel: `… 원격 ${label} 조회 중`,
         serverChangedLabel: "↻ 원격 주소 변경됨 — 다시 조회",
-        successLabel: (count) => `✓ ${label} ${count}개 — 다시 조회`,
+        successLabel: (count) => {
+            const target = widget(node, name);
+            return target?.options?.values?.includes(target.value)
+                ? `✓ ${label} ${count}개 — 다시 조회`
+                : `⚠ 선택한 ${label} 없음 — 목록에서 다시 선택`;
+        },
         failureLabel: (detail) => `⚠ 조회 실패: ${detail}`,
         warningPrefix: "[Remote Qwen Image 2.1] peer model lookup failed",
         apply(targetNode, payload) {
@@ -35,7 +40,7 @@ export async function refreshPeerChoices(node, button, kind) {
             if (!target) throw new Error(`${name} 선택 항목을 찾을 수 없습니다`);
             target.options = { ...(target.options || {}), values: choices };
             target.type = "combo";
-            if (!choices.includes(target.value)) target.value = choices[0];
+            target.value = resolvePeerModelChoice(target.value, choices);
             target.callback?.(target.value, app.canvas, targetNode, app.canvas?.graph_mouse);
             return choices.length;
         },

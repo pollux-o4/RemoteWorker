@@ -33,6 +33,17 @@ class ClipSelection(NamedTuple):
     device: str
 
 
+def resolve_peer_model_name(value: str, choices: list[str], field: str) -> str:
+    """Resolve separators only, preserving the peer's exact model identifier."""
+    if value in choices:
+        return value
+    matches = [name for name in choices if name.replace("\\", "/") == value.replace("\\", "/")]
+    if len(matches) == 1:
+        return matches[0]
+    reason = "ambiguous model path" if matches else "model unavailable"
+    raise ValueError(f"Remote peer {field}: {reason}: {value!r}; refresh the peer model list and select again")
+
+
 def parse_clip_loader_options(object_info: dict[str, Any]) -> dict[str, list[str]]:
     """Extract the peer CLIPLoader choices into the Remote Conditioning contract."""
     try:

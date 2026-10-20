@@ -145,3 +145,11 @@ flowchart TB
 - 상태: `GET /remoteworker/preparation` · ComfyUI 자동 준비 패널
 - 실행 판별: native progress · 브라우저 client ID와 독립
 - 범위: 다음 선두 1개·허용 CPU 조상·작업별 일회 전달
+
+## Qwen 원격 모델 선택
+
+- `core.protocol.resolve_peer_model_name`: 완전 일치 우선 · `/`·`\` 구분자만 동등 처리 · 유일 후보의 peer 원본 이름 반환
+- 누락·모호한 후보: 업로드·큐 제출 전 실패 · 대소문자·디렉터리·파일명 보존
+- `qwen.service._validate_peer_loaders`: CLIP·VAE 이름 해석 → `execute`의 workflow builder 전달
+- `web/remote_choices.js::resolvePeerModelChoice`: 동일 경로 선택 복구 · 누락·모호한 기존 선택 보존 · 빈 선택만 첫 항목 초기화
+- `web/remote_qwen_image21.js`: peer 목록 갱신·파일명 선택 · `remote_text_encoder` COMBO 입력과 로컬 `CLIP` 출력의 연결 불가

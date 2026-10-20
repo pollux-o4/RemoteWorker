@@ -23,6 +23,7 @@ from ..core.protocol import (
     DEFAULT_PEER_MEMORY_POLICY,
     PEER_MEMORY_POLICIES,
     ClipSelection,
+    resolve_peer_model_name,
     _validate_policy,
     validate_cleanup_capability,
 )
@@ -92,8 +93,9 @@ def _validate_qwen_capability(info: dict[str, Any]) -> None:
         raise RuntimeError("Remote Qwen Image 2.1 peer is incompatible; update custom-nodes on the peer")
 
 
-def _validate_peer_loaders(api: Any, clip: ClipSelection, vae_name: str) -> None:
+def _validate_peer_loaders(api: Any, clip: ClipSelection, vae_name: str) -> tuple[ClipSelection, str]:
     options = api.clip_loader_options()
+    clip = clip._replace(clip_name=resolve_peer_model_name(clip.clip_name, options.get("clip_name", []), "clip_name"))
     for field, value in zip(("clip_name", "clip_type", "device"), clip):
         if value not in options.get(field, []):
             raise ValueError(f"Remote Qwen Image 2.1 peer does not provide {field}: {value!r}")
@@ -101,8 +103,9 @@ def _validate_peer_loaders(api: Any, clip: ClipSelection, vae_name: str) -> None
         vaes = api.require_node("VAELoader")["input"]["required"]["vae_name"][0]
     except (KeyError, TypeError, IndexError) as exc:
         raise RuntimeError("Remote Qwen Image 2.1 peer VAELoader capability is malformed") from exc
-    if not isinstance(vaes, list) or vae_name not in vaes:
-        raise ValueError(f"Remote Qwen Image 2.1 peer does not provide vae_name: {vae_name!r}")
+    if not isinstance(vaes, list):
+        raise RuntimeError("Remote Qwen Image 2.1 peer VAELoader capability is malformed")
+    return clip, resolve_peer_model_name(vae_name, vaes, "vae_name")
 
 
 def build_workflow(*, clip: ClipSelection, vae_name: str, prompt: str, negative_prompt: str, resolution: int, negative_vision: bool, image_refs: list[str], request_id: str, peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY) -> dict[str, Any]:
@@ -156,7 +159,7 @@ def execute(
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> tuple[bytes, bytes, bytes]:
     _validate_qwen_capability(api.require_node(QWEN_WORKER))
-    _validate_peer_loaders(api, clip, vae_name)
+    clip, vae_name = _validate_peer_loaders(api, clip, vae_name)
     if peer_memory_policy == DEFAULT_PEER_MEMORY_POLICY:
         validate_cleanup_capability(api.require_node("VRAMCleanup"))
     refs: list[str] = []
@@ -242,14 +245,14 @@ if comfy_io is not None:
                     ),
                     comfy_io.Combo.Input(
                         "remote_text_encoder",
-                        display_name="2. 원격 텍스트 인코더",
+                        display_name="2. 원격 텍스트 인코더 파일명",
                         options=[DEFAULT_QWEN_CLIP],
                         default=DEFAULT_QWEN_CLIP,
-                        tooltip="위 원격 주소에 실제 설치된 Qwen 텍스트 인코더입니다. 목록 새로고침 후 선택하세요.",
+                        tooltip="원격 서버에서 로드할 모델 파일명 선택. 로컬 CLIP 출력 연결 불가. 주소 입력 후 목록 새로고침.",
                     ),
                     comfy_io.Combo.Input(
                         "vae_name",
-                        display_name="3. 참조 이미지 VAE",
+                        display_name="3. 원격 VAE 파일명",
                         options=[DEFAULT_QWEN_VAE],
                         default=DEFAULT_QWEN_VAE,
                         tooltip="참조 이미지를 latent로 바꿀 때 원격에서 사용할 VAE입니다. 목록 새로고침 후 선택하세요.",
