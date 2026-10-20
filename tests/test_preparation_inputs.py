@@ -87,3 +87,13 @@ class InputPreparationTests(unittest.TestCase):
         graph = {'draft': {'class_type': 'RequestConditionInput', 'inputs': {'name': 'prompt', 'text': '최종 Draft\nline 2'}},
                  'clip': {'inputs': {'prompt': ['draft', 0]}}}
         self.assertEqual(Resolver(graph, {'RequestConditionInput': RequestInput}).inputs('clip'), {'prompt': '최종 Draft\nline 2'})
+
+    def test_genrel_common_input_is_resolved_once_without_model_execution(self):
+        calls=[]
+        class Input:
+            FUNCTION='run'
+            def run(self,**values):calls.append(values);return (values['value'],)
+        graph={'input':{'class_type':'GenRelInput','inputs':{'kind':'텍스트','value':'approved'}},
+               'clip':{'inputs':{'prompt':['input',0],'second':['input',0]}}}
+        self.assertEqual(Resolver(graph,{'GenRelInput':Input}).inputs('clip'),{'prompt':'approved','second':'approved'})
+        self.assertEqual(len(calls),1)

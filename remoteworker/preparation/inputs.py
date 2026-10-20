@@ -17,6 +17,7 @@ SAFE_TYPES = frozenset(
         "PrimitiveString",
         "PrimitiveStringMultiline",
         "RequestConditionInput",
+        "GenRelInput",
         "ComfyMathExpression",
         "RemoteVAESelector",
     }
