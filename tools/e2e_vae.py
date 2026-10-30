@@ -71,7 +71,7 @@ def verify_tensor(caller, peer_url, vae, kind, tiled, output_mode="tensor"):
 
 def verify_shared(caller, peer_url, vae, audio_vae, large, tiled):
     import av
-    size, frames = (512, 175) if large else (64, 5)
+    size, frames = (512, 175) if large else (32, 5)
     options = dict(vae_name=vae, audio_vae_name=audio_vae, fps=VIDEO_FPS, crf=VIDEO_CRF,
                    tiled=tiled, server_url=peer_url, timeout_seconds=1800, memory_policy='release_after_result')
     started = time.monotonic()
