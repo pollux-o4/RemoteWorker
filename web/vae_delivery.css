@@ -9,6 +9,8 @@
 .remote-vae-delivery :is(button,a,summary) {max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
 .remote-vae-check button {min-height:32px;border:1px solid var(--border-color,#666);border-radius:5px;background:var(--comfy-menu-bg,#353535);color:inherit;padding:5px 10px;cursor:pointer;font:inherit;white-space:normal}
 .remote-vae-delivery summary {cursor:pointer;margin-top:8px;padding:4px 0;color:var(--descrip-text,#bbb)}
-.remote-vae-delivery :is(button,a,summary):focus-visible {outline:2px solid #92c9ff;outline-offset:2px}
+.remote-vae-delivery :is(button,a,summary,[data-diagnostic]):focus-visible {outline:2px solid #92c9ff;outline-offset:2px}
 .remote-vae-delivery :is(video,audio) {display:block;width:100%;max-height:180px;margin-top:10px;border-radius:5px}
 .remote-vae-delivery a {display:inline-block;color:#9acbff;text-decoration:underline;min-height:32px;padding-top:6px}
+
+.remote-vae-delivery [data-diagnostic] {max-height:8rem;overflow:auto}

@@ -152,6 +152,8 @@ export function setupDelivery(node) {
         const details = document.createElement("details"); details.hidden = true;
         const summary = document.createElement("summary"); summary.textContent = "상세";
         const diagnostic = document.createElement("p"); diagnostic.setAttribute("data-diagnostic", "");
+        diagnostic.setAttribute("tabindex", "0"); diagnostic.setAttribute("role", "region");
+        diagnostic.setAttribute("aria-label", "공유 폴더 연결 상세");
         details.append(summary, diagnostic);
         details.addEventListener("toggle", () => resizeDelivery(node));
         panel.append(row, next, details);

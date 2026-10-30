@@ -84,6 +84,11 @@ class StatusPanelTests(unittest.TestCase):
           api.fetchApi=async()=>({ok:false,json:async()=>({error:'permission denied on peer'})});
           await checkDelivery(node);assert.equal(button.textContent,'다시 확인');
           assert.match(panel.querySelector('details').textContent,/permission denied/);
+          const diagnostic=panel.querySelector('[data-diagnostic]');
+          assert.equal(diagnostic.getAttribute('tabindex'),'0');
+          assert.equal(diagnostic.getAttribute('role'),'region');
+          assert.equal(diagnostic.getAttribute('aria-label'),'공유 폴더 연결 상세');
+          diagnostic.focus();assert.equal(document.activeElement,diagnostic);
           assert.equal(status.title,'');
           api.fetchApi=async()=>({ok:true,json:async()=>({root:'/shared',ready:false})});
           await checkDelivery(node);assert.equal(status.dataset.state,'error');
