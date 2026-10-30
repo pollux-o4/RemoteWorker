@@ -40,11 +40,11 @@ class RemoteVAECombineMedia:
         from comfy.model_management import throw_exception_if_processing_interrupted
         from comfy_api.latest import InputImpl
 
-        exclusive = _native.vae_exclusive_sources(prompt, unique_id)
+        exclusive = _native.vae_exclusive_sources(prompt, unique_id, cleanup_sources)
         receipt = combine(
             video_path,
             audio_path,
-            cleanup=cleanup_sources and exclusive,
+            cleanup=exclusive,
             interrupt=throw_exception_if_processing_interrupted,
         )
         media = {
@@ -55,7 +55,7 @@ class RemoteVAECombineMedia:
             "ui": {
                 "shared_media": [media],
                 "text": [receipt["path"]],
-                "source_cleanup": [bool(cleanup_sources and exclusive)],
+                "source_cleanup": [exclusive],
             },
             "result": (InputImpl.VideoFromFile(receipt["path"]), receipt["path"]),
         }

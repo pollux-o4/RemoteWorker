@@ -1,8 +1,8 @@
 //! Request transaction orchestration. HTTP/Torch/Comfy calls are external effects.
-use super::{codec, policy, store};
+use super::{codec, policy, secure_fs, store};
 use crate::{from_python, to_python};
 use pyo3::{
-    exceptions::{PyOSError, PyRuntimeError, PyValueError},
+    exceptions::{PyException, PyOSError, PyRuntimeError, PyValueError},
     prelude::*,
     types::{PyBytes, PyDict},
 };
@@ -29,6 +29,32 @@ fn cancel(api: &Bound<'_, PyAny>, id: &str) {
     if let Err(err) = api.call_method1("cancel_prompt", (id,)) {
         warn(api.py(), "Could not cancel VAE peer request", &err);
     }
+}
+fn contextual(py: Python<'_>, error: PyErr, message: String) -> PyErr {
+    let cancellation = !error.is_instance_of::<PyException>(py)
+        || error
+            .get_type(py)
+            .getattr("__mro__")
+            .and_then(|mro| {
+                mro.try_iter()?
+                    .map(|kind| kind?.getattr("__name__")?.extract::<String>())
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .is_ok_and(|names| {
+                names.iter().any(|name| {
+                    matches!(
+                        name.as_str(),
+                        "RequestCancelled" | "InterruptProcessingException" | "CancelledError"
+                    )
+                })
+            });
+    if cancellation {
+        let _ = error.value(py).call_method1("add_note", (&message,));
+        return error;
+    }
+    let contextual = PyRuntimeError::new_err(format!("{message}: {error}"));
+    contextual.set_cause(py, Some(error));
+    contextual
 }
 fn prompt(api: &Bound<'_, PyAny>, graph: Py<PyAny>) -> PyResult<String> {
     let id = api
@@ -65,6 +91,7 @@ fn vae_execute_decode(
 ) -> PyResult<Py<PyAny>> {
     let py = api.py();
     policy::vae_validate_kind(kind, false)?;
+    policy::DecodeSettings::parse(options.cast::<PyDict>()?)?;
     policy::vae_preflight(api, vae_name, "RemoteVAEDecodeWorker", memory_policy)?;
     api.call_method1("require_node", ("SaveRemoteVAEOutput",))?;
     codec::latent(samples)?;
@@ -295,7 +322,15 @@ fn vae_consume(
     kwargs.set_item("weights_only", true)?;
     let value = py.import("torch")?.call_method(
         "load",
-        (store::as_path(py, &current.path)?,),
+        (store::as_path(
+            py,
+            &secure_fs::descriptor_path(
+                current
+                    .media_file
+                    .as_ref()
+                    .ok_or_else(|| PyValueError::new_err("Shared VAE tensor file is missing"))?,
+            ),
+        )?,),
         Some(&kwargs),
     )?;
     let value = codec::restore(&value)?;
@@ -306,8 +341,8 @@ fn vae_consume(
     let value = codec::vae_validate_result(value.bind(py), kind)?;
     check_cancelled.call0()?;
     store::remove_missing(&store::path("temp", request_id, "latent.pt")?)?;
-    fs::remove_file(&current.path)?;
-    fs::remove_file(current.path.with_file_name("decoded-receipt.json"))?;
+    secure_fs::remove(&current.path, false)?;
+    secure_fs::remove(&current.path.with_file_name("decoded-receipt.json"), false)?;
     Ok(value)
 }
 #[pyfunction]
@@ -346,12 +381,15 @@ fn vae_execute_shared(
         })
     })();
     result.map_err(|err| {
-        PyRuntimeError::new_err(format!(
-            "공유 VAE 작업 실패 · 재시도 ID: {request_id} · 임시 latent 보존: {err}"
-        ))
+        contextual(
+            py,
+            err,
+            format!("공유 VAE 작업 실패 · 재시도 ID: {request_id} · 임시 latent 보존"),
+        )
     })
 }
 #[pyfunction]
+#[allow(clippy::too_many_arguments)] // Mirrors the stable ComfyUI/Python node ABI.
 fn vae_execute_tensor(
     api: &Bound<'_, PyAny>,
     samples: &Bound<'_, PyAny>,
@@ -365,9 +403,9 @@ fn vae_execute_tensor(
     check_cancelled: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     let py = api.py();
+    let settings = policy::vae_tensor_options(py, vae_name, kind, decode_options)?;
     policy::vae_preflight(api, vae_name, "SharedVAETensorWorker", memory_policy)?;
     vae_check_shared(api)?;
-    let settings = policy::vae_tensor_options(py, vae_name, kind, decode_options)?;
     let request_id = if request_id.is_empty() {
         store::vae_save_latent(samples, None)?
     } else {
@@ -390,9 +428,11 @@ fn vae_execute_tensor(
         })
     })();
     result.map_err(|err| {
-        PyRuntimeError::new_err(format!(
-            "공유 텐서 전달 실패 · 재시도 ID: {request_id} · 임시 파일 보존: {err}"
-        ))
+        contextual(
+            py,
+            err,
+            format!("공유 텐서 전달 실패 · 재시도 ID: {request_id} · 임시 파일 보존"),
+        )
     })
 }
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -498,6 +538,7 @@ fn vae_discard_output(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)] // Mirrors the stable ComfyUI/Python node ABI.
 fn vae_run_decode(
     api: &Bound<'_, PyAny>,
     samples: &Bound<'_, PyAny>,
@@ -543,18 +584,30 @@ fn vae_run_decode(
 
 #[pyfunction]
 #[pyo3(signature=(vae,samples,kind,tiled,tile_size,overlap,temporal_size,temporal_overlap,*,transfer=true,max_bytes=536870912))]
+#[allow(clippy::too_many_arguments)] // Mirrors the stable ComfyUI/Python node ABI.
 fn vae_decode(
     vae: &Bound<'_, PyAny>,
     samples: &Bound<'_, PyAny>,
     kind: &str,
-    tiled: bool,
-    tile_size: usize,
-    overlap: usize,
-    temporal_size: usize,
-    temporal_overlap: usize,
+    tiled: &Bound<'_, PyAny>,
+    tile_size: &Bound<'_, PyAny>,
+    overlap: &Bound<'_, PyAny>,
+    temporal_size: &Bound<'_, PyAny>,
+    temporal_overlap: &Bound<'_, PyAny>,
     transfer: bool,
     max_bytes: usize,
 ) -> PyResult<Py<PyAny>> {
+    let fields = PyDict::new(vae.py());
+    for (key, value) in [
+        ("tiled", tiled),
+        ("tile_size", tile_size),
+        ("overlap", overlap),
+        ("temporal_size", temporal_size),
+        ("temporal_overlap", temporal_overlap),
+    ] {
+        fields.set_item(key, value)?;
+    }
+    let options = policy::DecodeSettings::parse(&fields)?;
     policy::vae_validate_kind(kind, false)?;
     policy::vae_check_channels(
         kind,
@@ -573,16 +626,16 @@ fn vae_decode(
             .unbind());
     }
     let nodes = py.import("nodes")?;
-    let result = if tiled {
+    let result = if options.tiled {
         nodes.getattr("VAEDecodeTiled")?.call0()?.call_method1(
             "decode",
             (
                 vae,
                 samples,
-                tile_size,
-                overlap,
-                temporal_size,
-                temporal_overlap,
+                options.tile_size,
+                options.overlap,
+                options.temporal_size,
+                options.temporal_overlap,
             ),
         )?
     } else {
@@ -606,6 +659,9 @@ fn decode_options<'py>(
             }
         }
     }
+    let checked = policy::DecodeSettings::parse(&options)?;
+    let checked = to_python(py, &checked.value())?;
+    let options = checked.bind(py).cast::<PyDict>()?.copy()?;
     options.set_item("transfer", false)?;
     Ok(options)
 }
@@ -663,7 +719,10 @@ fn vae_encode_video(
         );
     }
     let settings = decode_options(py, None)?;
-    settings.set_item("tiled", options.get_item("tiled")?)?;
+    settings.set_item(
+        "tiled",
+        policy::strict_bool(&options.get_item("tiled")?, "tiled")?,
+    )?;
     let frames = decode.call((vae, samples, "image"), Some(&settings))?;
     let mut audio = samples.call_method1("get", ("remote_vae_audio",))?;
     let audio_vae = options.get_item("audio_vae_name")?;

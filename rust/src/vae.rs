@@ -3,6 +3,7 @@ mod codec;
 mod execution;
 mod mux;
 mod policy;
+mod secure_fs;
 mod store;
 use pyo3::prelude::*;
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

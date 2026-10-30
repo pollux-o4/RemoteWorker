@@ -1,9 +1,9 @@
-use super::codec;
+use super::{codec, secure_fs};
 use crate::{from_python, to_python};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 use serde_json::{Value, json};
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     os::fd::AsRawFd,
     path::{Component, Path, PathBuf},
 };
@@ -13,6 +13,7 @@ use std::{
 pub(super) struct CommittedReceipt {
     pub(super) document: Value,
     pub(super) path: PathBuf,
+    pub(super) media_file: Option<File>,
 }
 
 #[derive(Clone, Debug)]
@@ -118,7 +119,7 @@ fn receipt(id: &str, options: Option<&Value>) -> PyResult<PathBuf> {
     )
 }
 fn json_read(path: &Path) -> PyResult<Value> {
-    let bytes = fs::read(path)?;
+    let bytes = secure_fs::read(path)?;
     serde_json::from_slice(&bytes).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 pub(super) fn read(id: &str, options: Option<&Value>) -> PyResult<Option<CommittedReceipt>> {
@@ -148,10 +149,23 @@ pub(super) fn read(id: &str, options: Option<&Value>) -> PyResult<Option<Committ
             }
         }
     }
-    let valid_size = fs::metadata(&video)
-        .ok()
-        .filter(|m| m.is_file() && m.len() > 0)
-        .is_some_and(|m| value.get("bytes").and_then(Value::as_u64) == Some(m.len()));
+    let media_file = match secure_fs::open(&video) {
+        Ok(file) => Some(file),
+        Err(error)
+            if Python::attach(|py| {
+                error.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(py)
+            }) =>
+        {
+            None
+        }
+        Err(error) => return Err(error),
+    };
+    let valid_size = media_file
+        .as_ref()
+        .and_then(|file| file.metadata().ok())
+        .is_some_and(|metadata| {
+            metadata.len() > 0 && value.get("bytes").and_then(Value::as_u64) == Some(metadata.len())
+        });
     if value.get("request_id").and_then(Value::as_str) != Some(id)
         || value.get("path").and_then(Value::as_str) != Some(video.to_string_lossy().as_ref())
         || (!consumed && !valid_size)
@@ -168,6 +182,7 @@ pub(super) fn read(id: &str, options: Option<&Value>) -> PyResult<Option<Committ
     Ok(Some(CommittedReceipt {
         document: value,
         path: video,
+        media_file,
     }))
 }
 fn unique(py: Python<'_>) -> PyResult<String> {
@@ -177,37 +192,30 @@ fn unique(py: Python<'_>) -> PyResult<String> {
         .extract()
 }
 pub(super) fn remove_missing(path: &Path) -> PyResult<()> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e.into()),
-    }
+    secure_fs::remove(path, true)
 }
 pub(super) fn atomic<F>(py: Python<'_>, path: &Path, writer: F) -> PyResult<()>
 where
     F: FnOnce(&Path) -> PyResult<()>,
 {
-    let parent = path
-        .parent()
-        .ok_or_else(|| PyValueError::new_err("Atomic destination requires a parent directory"))?;
-    fs::create_dir_all(parent)?;
+    let directory = secure_fs::parent(path, true)?;
     let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-    let suffix = path
-        .extension()
-        .map(|s| format!(".{}", s.to_string_lossy()))
-        .unwrap_or_default();
-    let temporary = path.with_file_name(format!(".{stem}-{}{suffix}", unique(py)?));
+    let temporary = std::ffi::OsString::from(format!(".{stem}-{}", unique(py)?));
+    let file = directory.open(&temporary, libc::O_RDWR | libc::O_CREAT | libc::O_EXCL)?;
     let result = (|| {
-        writer(&temporary)?;
-        File::open(&temporary)?.sync_all()?;
-        fs::rename(&temporary, path)?;
-        File::open(parent)?.sync_all()?;
-        Ok(())
+        writer(&secure_fs::descriptor_path(&file))?;
+        file.sync_all()?;
+        directory.publish(
+            &temporary,
+            path.file_name()
+                .ok_or_else(|| PyValueError::new_err("Invalid shared VAE destination"))?,
+            &file,
+        )
     })();
-    let cleanup = remove_missing(&temporary);
+    let cleanup = directory.unlink(&temporary, true);
     match result {
         Ok(()) => cleanup,
-        Err(e) => Err(e),
+        Err(error) => Err(error),
     }
 }
 pub(super) fn write_json(py: Python<'_>, path: &Path, value: &Value) -> PyResult<()> {
@@ -249,8 +257,7 @@ impl VaeRequestLock {
 }
 pub(super) fn acquire(py: Python<'_>, id: &str) -> PyResult<VaeRequestLock> {
     let file = path("temp", id, "request.lock")?;
-    fs::create_dir_all(file.parent().unwrap())?;
-    let file = OpenOptions::new().create(true).append(true).open(file)?;
+    let file = secure_fs::create_lock(&file)?;
     py.import("fcntl")?
         .call_method1("flock", (file.as_raw_fd(), 2))?;
     Ok(VaeRequestLock { file: Some(file) })
@@ -274,9 +281,8 @@ fn vae_request_path(
 #[pyfunction]
 fn vae_request_lock(_py: Python<'_>, request_id: &str) -> PyResult<VaeRequestLock> {
     let file = path("temp", request_id, "request.lock")?;
-    fs::create_dir_all(file.parent().unwrap())?;
     Ok(VaeRequestLock {
-        file: Some(OpenOptions::new().create(true).append(true).open(file)?),
+        file: Some(secure_fs::create_lock(&file)?),
     })
 }
 #[pyfunction]
@@ -376,9 +382,14 @@ fn load(py: Python<'_>, id: &str) -> PyResult<Py<PyAny>> {
     let kwargs = PyDict::new(py);
     kwargs.set_item("map_location", "cpu")?;
     kwargs.set_item("weights_only", true)?;
-    let value = py
-        .import("torch")?
-        .call_method("load", (as_path(py, &p)?,), Some(&kwargs))?;
+    let value = py.import("torch")?.call_method(
+        "load",
+        (as_path(
+            py,
+            &secure_fs::descriptor_path(&secure_fs::open(&p)?),
+        )?,),
+        Some(&kwargs),
+    )?;
     let value = codec::restore(&value)?;
     codec::latent(value.bind(py))?;
     Ok(value)
@@ -414,7 +425,7 @@ fn vae_publish(
         .as_object()
         .cloned()
         .ok_or_else(|| PyValueError::new_err("Shared result writer returned invalid metadata"))?;
-    let size = fs::metadata(&destination)?.len();
+    let size = secure_fs::open(&destination)?.metadata()?.len();
     if size == 0 {
         return Err(PyValueError::new_err(
             "Shared result writer produced an empty file",

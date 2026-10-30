@@ -288,6 +288,7 @@ dependencies = [
 name = "remoteworker-native"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "pyo3",
  "serde_json",
  "url",

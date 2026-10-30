@@ -2,7 +2,7 @@ use crate::{from_python, to_python};
 use pyo3::{
     exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
-    types::{PyDict, PyFloat, PyInt, PyString},
+    types::{PyBool, PyDict, PyFloat, PyInt, PyString},
 };
 use serde_json::{Value, json};
 
@@ -19,6 +19,73 @@ impl Kind {
             _ => Err(PyValueError::new_err(message.to_owned())),
         }
     }
+}
+/// Comfy's native tile limits; overlap reduction remains owned by the native decoder.
+pub(super) struct DecodeSettings {
+    pub(super) tiled: bool,
+    pub(super) tile_size: usize,
+    pub(super) overlap: usize,
+    pub(super) temporal_size: usize,
+    pub(super) temporal_overlap: usize,
+}
+impl DecodeSettings {
+    pub(super) fn parse(values: &Bound<'_, PyDict>) -> PyResult<Self> {
+        let mut result = Self {
+            tiled: false,
+            tile_size: 512,
+            overlap: 64,
+            temporal_size: 64,
+            temporal_overlap: 8,
+        };
+        for (key, value) in values.iter() {
+            let key = key.extract::<String>()?;
+            match key.as_str() {
+                "tiled" => result.tiled = strict_bool(&value, "tiled")?,
+                "tile_size" => result.tile_size = bounded_integer(&value, "tile_size", 64, 4096)?,
+                "overlap" => result.overlap = bounded_integer(&value, "overlap", 0, 4096)?,
+                "temporal_size" => {
+                    result.temporal_size = bounded_integer(&value, "temporal_size", 8, 4096)?
+                }
+                "temporal_overlap" => {
+                    result.temporal_overlap = bounded_integer(&value, "temporal_overlap", 4, 4096)?
+                }
+                _ => return Err(PyValueError::new_err("Unknown shared tensor decode option")),
+            }
+        }
+        Ok(result)
+    }
+    pub(super) fn value(&self) -> Value {
+        json!({"tiled":self.tiled,"tile_size":self.tile_size,"overlap":self.overlap,"temporal_size":self.temporal_size,"temporal_overlap":self.temporal_overlap})
+    }
+}
+pub(super) fn strict_bool(value: &Bound<'_, PyAny>, name: &str) -> PyResult<bool> {
+    if !value.is_instance_of::<PyBool>() {
+        return Err(PyValueError::new_err(format!(
+            "Remote VAE {name} must be a boolean"
+        )));
+    }
+    value.extract()
+}
+fn bounded_integer(
+    value: &Bound<'_, PyAny>,
+    name: &str,
+    min: usize,
+    max: usize,
+) -> PyResult<usize> {
+    if !value.get_type().is(value.py().get_type::<PyInt>()) {
+        return Err(PyValueError::new_err(format!(
+            "Remote VAE {name} must be an integer between {min} and {max}"
+        )));
+    }
+    value
+        .extract::<usize>()
+        .ok()
+        .filter(|v| (*v >= min) && (*v <= max))
+        .ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "Remote VAE {name} must be an integer between {min} and {max}"
+            ))
+        })
 }
 fn model(value: &Bound<'_, PyAny>) -> bool {
     value
@@ -91,7 +158,7 @@ fn vae_video_options(
     ] {
         result.set_item(k, v)?;
     }
-    result.set_item("tiled", tiled.is_truthy()?)?;
+    result.set_item("tiled", strict_bool(tiled, "tiled")?)?;
     if media == Kind::Audio {
         result.set_item("kind", kind)?;
     }
@@ -110,16 +177,12 @@ pub(super) fn vae_build_workflow(
     request_id: &str,
     memory_policy: &str,
 ) -> PyResult<Py<PyAny>> {
-    let mut decode = from_python(options)?
-        .as_object()
-        .cloned()
-        .ok_or_else(|| PyValueError::new_err("Invalid decode options"))?;
-    // Caller order matches the public adapter: explicit options may override native fields.
+    let decode = DecodeSettings::parse(options.cast::<PyDict>()?)?;
     let mut fields = json!({"vae":["vae",0],"filename":filename,"kind":kind})
         .as_object()
         .unwrap()
         .clone();
-    fields.append(&mut decode);
+    fields.extend(decode.value().as_object().unwrap().clone());
     let mut graph = json!({"vae":{"class_type":"VAELoader","inputs":{"vae_name":vae_name}},"decode":{"class_type":"RemoteVAEDecodeWorker","inputs":fields},"save":{"class_type":"SaveRemoteVAEOutput","inputs":{"value":["decode",0],"filename_prefix":format!("remote-conditioning/{request_id}/decoded")}}});
     if memory_policy == "release_after_result" {
         cleanup(&mut graph, "save");
@@ -220,20 +283,13 @@ pub(super) fn vae_tensor_options(
     decode_options: &Bound<'_, PyDict>,
 ) -> PyResult<Py<PyAny>> {
     Kind::parse(kind, "Unknown Remote VAE output kind")?;
-    let mut options = decode_defaults();
+    let mut options = DecodeSettings::parse(decode_options)?.value();
+    if !model(vae_name) {
+        return Err(PyValueError::new_err("Remote VAE requires a model name"));
+    }
     options["delivery"] = "tensor".into();
     options["vae_name"] = from_python(vae_name)?;
     options["kind"] = kind.into();
-    for (k, v) in decode_options.iter() {
-        let k = k.extract::<String>()?;
-        if !matches!(
-            k.as_str(),
-            "tiled" | "tile_size" | "overlap" | "temporal_size" | "temporal_overlap"
-        ) {
-            return Err(PyValueError::new_err("Unknown shared tensor decode option"));
-        }
-        options[k] = from_python(&v)?;
-    }
     to_python(py, &options)
 }
 pub(super) fn vae_validate_kind(kind: &str, warmup: bool) -> PyResult<()> {
@@ -555,7 +611,11 @@ fn vae_request_body(
 fn vae_exclusive_sources(
     prompt: &Bound<'_, PyAny>,
     unique_id: &Bound<'_, PyAny>,
+    cleanup: bool,
 ) -> PyResult<bool> {
+    if !cleanup {
+        return Ok(false);
+    }
     let Ok(graph) = prompt.cast::<PyDict>() else {
         return Ok(true);
     };

@@ -1,11 +1,10 @@
 //! Finalization transaction: validate source receipts, publish, then consume inputs.
-use super::store;
+use super::{secure_fs, store};
 use crate::{from_python, to_python};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyList};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
-    fs,
     path::{Path, PathBuf},
 };
 fn source(path: &Path, filename: &str) -> PyResult<String> {
@@ -111,7 +110,7 @@ fn vae_mux_command(
     } else {
         command.extend(["-map", "0:v:0", "-map", "0:a?", "-c", "copy"].map(str::to_owned));
     }
-    command.extend(["-movflags", "+faststart", "-y"].map(str::to_owned));
+    command.extend(["-movflags", "+faststart", "-f", "mp4", "-y"].map(str::to_owned));
     command.push(target);
     Ok(PyList::new(py, command)?.unbind())
 }
@@ -160,14 +159,23 @@ fn vae_mux_combine(
     let receipt = if let Some(receipt) = store::read(identity, Some(&options))? {
         receipt.document
     } else {
+        let mut committed_sources = Vec::new();
         for (id, filename) in sources.iter().zip(["video.mp4", "audio.wav"]) {
             let expected = store::path("outputs", id, filename)?;
-            if store::read(id, None)?.is_none_or(|receipt| receipt.path != expected) {
-                return Err(PyValueError::new_err(
-                    "디코딩 결과가 없습니다. 원격 VAE를 다시 실행하세요.",
-                ));
-            }
+            let committed = store::read(id, None)?
+                .filter(|receipt| receipt.path == expected && receipt.media_file.is_some())
+                .ok_or_else(|| {
+                    PyValueError::new_err("디코딩 결과가 없습니다. 원격 VAE를 다시 실행하세요.")
+                })?;
+            committed_sources.push(committed);
         }
+        let pinned_video =
+            secure_fs::descriptor_path(committed_sources[0].media_file.as_ref().unwrap());
+        let video = pinned_video.as_path();
+        let pinned_audio = committed_sources
+            .get(1)
+            .map(|receipt| secure_fs::descriptor_path(receipt.media_file.as_ref().unwrap()));
+        let audio = pinned_audio.as_deref();
         let video_info = from_python(&probe.call1((store::as_path(py, video)?, interrupt))?)?;
         let video_duration = duration(&video_info);
         if let Some(audio) = audio {
@@ -202,7 +210,7 @@ fn vae_mux_combine(
                 interrupt,
             ))?;
             let info = from_python(&probe.call1((store::as_path(py, temporary)?, interrupt))?)?;
-            metadata = validate_info(&info, audio_path != "")?;
+            metadata = validate_info(&info, !audio_path.is_empty())?;
             if (metadata["duration"].as_f64().unwrap() - video_duration).abs() > 0.25 {
                 return Err(PyValueError::new_err(
                     "결합 후 영상 길이가 달라졌습니다. 중간 파일을 보존합니다.",
@@ -213,7 +221,10 @@ fn vae_mux_combine(
         let mut receipt = metadata.as_object().unwrap().clone();
         receipt.insert("request_id".into(), identity.into());
         receipt.insert("path".into(), destination.to_string_lossy().as_ref().into());
-        receipt.insert("bytes".into(), fs::metadata(&destination)?.len().into());
+        receipt.insert(
+            "bytes".into(),
+            secure_fs::open(&destination)?.metadata()?.len().into(),
+        );
         receipt.insert("options".into(), options.clone());
         receipt.insert("sources".into(), json!(sources));
         receipt.insert("final".into(), true.into());
