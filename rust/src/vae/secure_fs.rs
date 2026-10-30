@@ -1,4 +1,5 @@
 //! Linux file effects pinned to directory/file descriptors, never re-resolved by a writer.
+// shortcut: 현재 두 Comfy 프로세스의 동일 Unix UID 전제로 0700/0600 사용, 서로 다른 UID의 공유 마운트 배포 전에 권한 모델 검토.
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::{
     ffi::CString,
