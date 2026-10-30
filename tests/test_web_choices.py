@@ -17,7 +17,7 @@ const node={widgets:[{name:'server_url',value:'http://peer'}, {name:'timeout_sec
 const button={};
 await refreshPeerChoices(node,button,'encoder');
 assert.equal(target.value,'missing');
-assert.deepEqual(target.options.values,['available']);
+assert.deepEqual(target.options.values,['missing','available']);
 assert.match(button.name,/다시 선택/);
 """, api="export const api={fetchApi:async()=>({ok:true,json:async()=>({clip_name:['available']})})};")
 
@@ -31,7 +31,7 @@ assert.equal(select('missing', ['first']), 'missing');
 assert.equal(select('A/model', ['a/model']), 'A/model');
 assert.equal(select('a\\b/c', ['a/b/c', 'a/b\\c']), 'a\\b/c');
 assert.equal(select('a/b', ['a/b', 'a\\b']), 'a/b');
-assert.equal(select('', ['first']), 'first');
+assert.equal(select('', ['first']), '');
 """)
         self.assertEqual(0, result.returncode)
 
@@ -39,7 +39,7 @@ assert.equal(select('', ['first']), 'first');
         shutil.which("node"),
         "Node.js is needed for the browser-independent JS contract test",
     )
-    def test_remote_options_preserve_valid_values_and_fallback_atomically(self) -> None:
+    def test_remote_options_preserve_explicit_values_atomically(self) -> None:
         completed = run_web(
             textwrap.dedent(
                 """
@@ -61,8 +61,8 @@ assert.equal(select('', ['first']), 'first');
         self.assertEqual(
             {
                 "clip_name": "keep.safetensors",
-                "clip_type": "lumina2",
-                "device": "default",
+                "clip_type": "old",
+                "device": "cuda",
             },
             json.loads(completed.stdout),
         )
@@ -147,7 +147,7 @@ assert.equal(select('', ['first']), 'first');
                                 const contracts = JSON.parse(process.argv[2]);
                                 const results = contracts.map(({ node_name, widgets, remote }) => {
                                   const count = applyRemoteOptions({ widgets }, remote);
-                                  const afterSuccess = structuredClone(widgets);
+                                  const afterSuccess = JSON.parse(JSON.stringify(widgets));
                                   try {
                                     applyRemoteOptions({ widgets }, { ...remote, clip_type: [] });
                                   } catch (_error) {}
@@ -213,7 +213,7 @@ assert.equal(select('', ['first']), 'first');
         shutil.which("node"),
         "Node.js is needed for the browser-independent JS contract test",
     )
-    def test_remote_vae_options_replace_saved_value_when_missing_from_peer_list(
+    def test_remote_vae_options_preserve_saved_value_when_missing_from_peer_list(
         self,
     ) -> None:
         completed = run_web(
@@ -238,11 +238,11 @@ assert.equal(select('', ['first']), 'first');
         result = json.loads(completed.stdout)
         self.assertEqual(2, result["count"])
         self.assertEqual(
-            ["remote-models\\new-video.vae", "remote-models\\new-video.vae"],
+            ["remote-models\\old-video.vae", "remote-models\\old-audio.vae"],
             [widget["value"] for widget in result["widgets"]],
         )
         self.assertEqual(
-            ["remote-models\\new-video.vae", "remote-models\\new-audio.vae"],
+            ["remote-models\\old-video.vae", "remote-models\\new-video.vae", "remote-models\\new-audio.vae"],
             result["widgets"][0]["options"]["values"],
         )
 

@@ -39,10 +39,26 @@ export function syncMiniMaxReferenceInputs(node) {
         const target = Math.min(maximum - 1, Math.max(0, highestConnected + 1));
         for (let index = (node.inputs?.length || 0) - 1; index >= 0; index -= 1) {
             const match = expression.exec(node.inputs[index]?.name || "");
-            if (match && Number(match[1]) >= target) node.removeInput(index);
+            if (match && Number(match[1]) > target && node.inputs[index].link == null) node.removeInput(index);
         }
         const existing = new Set((node.inputs || []).map((input) => expression.exec(input.name || "")).filter(Boolean).map((match) => Number(match[1])));
         for (let index = 0; index <= target; index += 1) if (!existing.has(index)) node.addInput(`${prefix}_${index}`, type, { shape: 7 });
+    }
+    const groupOrder = new Map(groups.map(([prefix], index) => [prefix, index]));
+    const position = input => {
+        const match = /^(ref_image|ref_video|ref_video_audio|ref_audio)_([0-9]+)$/.exec(input.name || "");
+        return match ? [groupOrder.get(match[1]), Number(match[2])] : null;
+    };
+    const media = (node.inputs || []).filter(input => position(input));
+    media.sort((left, right) => {
+        const a = position(left), b = position(right);
+        return a[0] - b[0] || a[1] - b[1];
+    });
+    let next = 0;
+    const ordered = (node.inputs || []).map(input => position(input) ? media[next++] : input);
+    if (ordered.some((input, index) => input !== node.inputs[index])) {
+        node.inputs.splice(0, node.inputs.length, ...ordered);
+        for (const input of node.inputs) setTargetSlot(node, input);
     }
     node.setSize?.(node.computeSize?.() || node.size);
     app.graph?.setDirtyCanvas?.(true, true);

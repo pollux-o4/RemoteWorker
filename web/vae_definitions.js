@@ -38,9 +38,9 @@ export function applyInitialVaeDefinitions(definitions) {
         const fields = definition.input?.required;
         const names = initialModels.get(fields?.server_url?.[1]?.default);
         if (names) {
-            fields.vae_name[0] = ["", ...names];
+            fields.vae_name[0] = [...new Set([fields.vae_name[1]?.default ?? fields.vae_name[0][0] ?? "", ...names])];
             const audio = definition.input?.optional?.audio_vae_name || fields.audio_vae_name;
-            if (audio) audio[0] = ["", ...names];
+            if (audio) audio[0] = [...new Set([audio[1]?.default ?? audio[0][0] ?? "", "", ...names])];
         }
         recordVaeDefinition(definition);
     }

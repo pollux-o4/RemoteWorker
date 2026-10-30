@@ -23,7 +23,7 @@ export function cleanOptions(values, name) {
     if (values.some((value) => typeof value !== "string" || !value.trim())) {
         throw new Error(`${name} 선택 목록에 올바르지 않은 값이 있습니다`);
     }
-    const cleaned = [...new Set(values.map((value) => value.trim()))];
+    const cleaned = [...new Set(values)];
     if (!cleaned.length) {
         throw new Error(`${name} 선택 목록이 비어 있습니다`);
     }
@@ -32,7 +32,7 @@ export function cleanOptions(values, name) {
 
 export function resolvePeerModelChoice(current, choices) {
     if (choices.includes(current)) return current;
-    if (typeof current !== "string" || !current) return choices[0];
+    if (typeof current !== "string" || !current) return current ?? "";
     const matches = choices.filter(name => name.replaceAll("\\", "/") === current.replaceAll("\\", "/"));
     return matches.length === 1 ? matches[0] : current;
 }
@@ -56,7 +56,7 @@ export function reconcileRemoteOptions(current, remote) {
     return Object.fromEntries(
         OPTION_WIDGET_NAMES.map((name) => [
             name,
-            normalized[name].includes(current?.[name]) ? current[name] : normalized[name][0],
+            resolvePeerModelChoice(current?.[name], normalized[name]),
         ]),
     );
 }
@@ -70,8 +70,7 @@ export function applyRemoteVaeOptions(node, remote) {
         throw new Error("vae_name 위젯을 찾을 수 없습니다");
     }
     for (const widget of widgets) {
-        widget.options = { ...(widget.options || {}), values: normalized.vae_name };
-        if (!normalized.vae_name.includes(widget.value)) widget.value = normalized.vae_name[0];
+        applyChoiceWidget(widget, normalized.vae_name);
         widget.callback?.(widget.value, app.canvas, node, app.canvas?.graph_mouse);
     }
     app.graph?.setDirtyCanvas?.(true, true);
@@ -96,10 +95,8 @@ export function applyRemoteOptions(node, remote) {
 
     for (const name of OPTION_WIDGET_NAMES) {
         const widget = widgets[name];
-        widget.options = { ...(widget.options || {}) };
-        widget.options.values = normalized[name];
-        widget.type = "combo";
         widget.value = selected[name];
+        applyChoiceWidget(widget, normalized[name]);
     }
     for (const name of OPTION_WIDGET_NAMES) {
         const widget = widgets[name];
@@ -120,8 +117,69 @@ export async function readError(response) {
     }
 }
 
+export function applyChoiceWidget(widget, choices) {
+    widget.value = resolvePeerModelChoice(widget.value, choices);
+    widget._remotePeerChoices = choices;
+    widget.options = { ...(widget.options || {}), values: choices.includes(widget.value) ? choices : [widget.value, ...choices] };
+    widget.type = "combo";
+    if (!widget._remoteChoiceCallback) {
+        widget._remoteChoiceHelp = widget.options.tooltip || "";
+        const previous = widget.callback;
+        widget.callback = function () {
+            const result = previous?.apply(this, arguments);
+            updateChoiceHelp(widget);
+            for (const refresh of widget._remoteChoiceStatus?.values() || []) refresh();
+            return result;
+        };
+        widget._remoteChoiceCallback = true;
+    }
+    updateChoiceHelp(widget);
+}
+
+function updateChoiceHelp(widget) {
+    const missing = widget.value && !widget._remotePeerChoices?.includes(widget.value);
+    widget.options.tooltip = [widget._remoteChoiceHelp, missing ? "현재 선택 미확인 · 목록에서 다시 선택" : ""].filter(Boolean).join("\n");
+}
+
+export function choiceStatus(node, names) {
+    const widgets = names.map(name => findOptionWidget(node, name)).filter(Boolean);
+    if (widgets.some(widget => !widget.value)) return "empty";
+    return widgets.some(widget => !widget._remotePeerChoices?.includes(widget.value)) ? "missing" : "ready";
+}
+
+function trackServer(node, serverWidget) {
+    if (!node._remoteChoiceServer) {
+        node._remoteChoiceServer = { value: serverWidget.value, revision: 0, buttons: new Map() };
+        const previous = serverWidget.callback;
+        serverWidget.callback = function () {
+            const result = previous?.apply(this, arguments);
+            const state = node._remoteChoiceServer;
+            if (state.value !== serverWidget.value) {
+                state.value = serverWidget.value;
+                state.revision++;
+                for (const [button, config] of state.buttons) {
+                    config.label(config.serverChangedLabel);
+                    button.options = { ...(button.options || {}), tooltip: "서버가 바뀌었습니다. 목록을 새로고침하세요. 기존 선택 유지." };
+                }
+                app.graph?.setDirtyCanvas?.(true, true);
+            }
+            return result;
+        };
+    }
+    const state = node._remoteChoiceServer;
+    if (state.value !== serverWidget.value) {
+        state.value = serverWidget.value;
+        state.revision++;
+    }
+    return state;
+}
+
+export function remoteServerRevision(node) {
+    const server = node.widgets?.find(widget => widget.name === "server_url");
+    return server ? trackServer(node, server).revision : 0;
+}
+
 export async function refreshRemoteChoiceOptions(node, button, config) {
-    if (button[config.loadingKey]) return;
     const setLabel = config.setLabel || ((label) => { button.name = label; });
     const serverWidget = node.widgets?.find((widget) => widget.name === "server_url");
     const timeoutWidget = node.widgets?.find((widget) => widget.name === "timeout_seconds");
@@ -129,37 +187,55 @@ export async function refreshRemoteChoiceOptions(node, button, config) {
         setLabel(config.missingSettingsLabel);
         return;
     }
-
+    const state = trackServer(node, serverWidget);
+    state.buttons.set(button, { ...config, label: setLabel });
+    const previous = button._remoteChoiceRequest;
+    if (previous?.server === state.value && previous.revision === state.revision) return;
+    const request = { server: state.value, revision: state.revision };
+    button._remoteChoiceRequest = request;
+    const current = () => button._remoteChoiceRequest === request && serverWidget.value === request.server && state.revision === request.revision;
     button[config.loadingKey] = true;
     setLabel(config.loadingLabel);
+    button.options = { ...(button.options || {}), tooltip: "목록 조회 중 · 기존 선택 유지" };
     app.graph?.setDirtyCanvas?.(true, true);
     try {
-        const lookupTimeout = Math.min(30, Math.max(5, Number(timeoutWidget.value) || 5));
-        const requestedServerUrl = serverWidget.value;
         const response = await api.fetchApi(config.path, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                server_url: requestedServerUrl,
-                timeout_seconds: lookupTimeout,
-            }),
+            body: JSON.stringify({ server_url: request.server, timeout_seconds: Math.min(30, Math.max(5, Number(timeoutWidget.value) || 5)) }),
         });
-        if (!response.ok) {
-            throw new Error(await readError(response));
-        }
+        if (!response.ok) throw new Error(await readError(response));
         const payload = await response.json();
-        if (serverWidget.value !== requestedServerUrl) {
-            setLabel(config.serverChangedLabel);
-            return;
-        }
+        if (!current()) return;
         const count = config.apply(node, payload);
+        button.options.tooltip = `목록 ${count}개 · 기존 선택 유지`;
         setLabel(config.successLabel(count));
+        for (const name of config.widgetNames || []) {
+            const widget = findOptionWidget(node, name);
+            if (!widget) continue;
+            widget._remoteChoiceStatus ??= new Map();
+            widget._remoteChoiceStatus.set(button, () => {
+                if (!button._remoteChoiceRequest && serverWidget.value === request.server && state.revision === request.revision) {
+                    setLabel(config.successLabel(count));
+                    app.graph?.setDirtyCanvas?.(true, true);
+                }
+            });
+        }
     } catch (error) {
+        if (!current()) return;
         const detail = error instanceof Error ? error.message : String(error);
-        setLabel(config.failureLabel(detail));
+        button.options.tooltip = `조회 실패 · 기존 선택 유지\n${detail}`;
+        const label = config.failureLabel(detail);
+        setLabel(label);
+        if (config.notify !== false) app.extensionManager?.toast?.add({ severity: "error", summary: label,
+            detail: `${detail.slice(0, 180)} 서버 주소 확인 후 재시도하세요. 기존 선택 유지.`, life: 7000 });
         console.warn(config.warningPrefix, error);
     } finally {
-        button[config.loadingKey] = false;
+        if (button._remoteChoiceRequest === request) {
+            if (!current()) setLabel(config.serverChangedLabel);
+            delete button._remoteChoiceRequest;
+            button[config.loadingKey] = false;
+        }
         app.graph?.setDirtyCanvas?.(true, true);
     }
 }
@@ -168,11 +244,12 @@ export async function refreshRemoteOptions(node, button) {
     return refreshRemoteChoiceOptions(node, button, {
         loadingKey: "_remoteConditioningLoading",
         path: "/remote-conditioning/clip-loader-options",
-        missingSettingsLabel: "⚠ 원격 설정 위젯 없음 — 기존 선택 유지",
-        loadingLabel: "… 원격 CLIP 목록 조회 중",
-        serverChangedLabel: "↻ 원격 CLIP 목록 새로고침 — server_url 변경됨",
-        successLabel: (count) => `✓ 원격 CLIP ${count}개 — 다시 조회`,
-        failureLabel: (detail) => `⚠ 조회 실패: ${detail} — 기존 선택 유지`,
+        widgetNames: OPTION_WIDGET_NAMES,
+        missingSettingsLabel: "서버 설정 확인",
+        loadingLabel: "CLIP 조회 중…",
+        serverChangedLabel: "서버 변경됨 · 새로고침",
+        successLabel: (count) => choiceStatus(node, OPTION_WIDGET_NAMES) === "ready" ? `CLIP ${count}개 · 새로고침` : "다시 선택 · CLIP 새로고침",
+        failureLabel: () => "조회 실패 · CLIP 재시도",
         warningPrefix: "[Remote Conditioning] CLIP 목록 조회 실패",
         apply: applyRemoteOptions,
     });
@@ -182,11 +259,12 @@ export async function refreshRemoteVaeOptions(node, button) {
     return refreshRemoteChoiceOptions(node, button, {
         loadingKey: "_remoteVaeLoading",
         path: "/remote-conditioning/vae-loader-options",
-        missingSettingsLabel: "⚠ 원격 설정 위젯 없음 — 기존 VAE 선택 유지",
-        loadingLabel: "… 원격 VAE 목록 조회 중",
-        serverChangedLabel: "↻ 원격 VAE 목록 새로고침 — server_url 변경됨",
-        successLabel: (count) => `✓ 원격 VAE ${count}개 — 다시 조회`,
-        failureLabel: (detail) => `⚠ VAE 조회 실패: ${detail} — 기존 선택 유지`,
+        widgetNames: VAE_WIDGET_NAMES,
+        missingSettingsLabel: "서버 설정 확인",
+        loadingLabel: "VAE 조회 중…",
+        serverChangedLabel: "서버 변경됨 · 새로고침",
+        successLabel: (count) => choiceStatus(node, VAE_WIDGET_NAMES) === "ready" ? `VAE ${count}개 · 새로고침` : "다시 선택 · VAE 새로고침",
+        failureLabel: () => "조회 실패 · VAE 재시도",
         warningPrefix: "[Remote Conditioning] VAE 목록 조회 실패",
         apply: applyRemoteVaeOptions,
     });

@@ -2,7 +2,6 @@ import {fetchJson} from './remote_choices.js';
 
 const types = new Set(['RemoteMiniMaxH3ReferenceEncode', 'RemoteMiniMaxH3ImageToVideo']);
 const discovered = new Map();
-const basename = value => String(value || '').replaceAll('\\', '/').split('/').pop();
 
 export function applyMiniMaxModelDefinitions(definitions) {
   for (const definition of definitions || []) {
@@ -15,10 +14,9 @@ export function applyMiniMaxModelDefinitions(definitions) {
       const spec = required[field];
       if (!Array.isArray(spec?.[0])) continue;
       const values = field === 'clip_name' ? models.clip : models.vae;
-      const previous = spec[1]?.default || spec[0][0];
-      const selected = values.includes(previous) ? previous : values.find(value => basename(value) === basename(previous));
-      spec[0].splice(0, spec[0].length, ...values);
-      spec[1] = {...spec[1], default: selected || previous};
+      const previous = spec[1]?.default ?? spec[0][0];
+      spec[0].splice(0, spec[0].length, ...new Set([previous ?? '', ...values]));
+      spec[1] = {...spec[1], default: previous};
     }
   }
 }

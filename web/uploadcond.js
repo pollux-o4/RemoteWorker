@@ -1,76 +1,108 @@
-// LoadConditioning 노드에 LoadImage 식 업로드 UX 부여: 업로드 버튼 + 드래그-드롭 + 붙여넣기.
-// .cond 파일을 /upload/image (임의 바이트 허용) 로 서버 input/ 에 올리고 드롭다운에 잡는다.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { readError } from "./remote_choices.js";
 
-async function uploadCond(file, node) {
-    const w = node.widgets?.find((x) => x.name === "filename");
-    if (!w) return;
-    try {
-        const body = new FormData();
-        body.append("image", file, file.name);   // /upload/image 는 필드명 'image' 를 받음(내용 검증 없음)
-        body.append("overwrite", "true");
-        const resp = await api.fetchApi("/upload/image", { method: "POST", body });
-        if (resp.status !== 200) { console.error("[LoadConditioning] upload 실패", resp.status); return; }
-        const data = await resp.json();
-        const name = data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
-        if (!w.options.values.includes(name)) w.options.values.push(name);
-        w.value = name;
-        w.callback?.(name);
-        app.graph.setDirtyCanvas(true, true);
-        console.log("[LoadConditioning] 업로드됨 →", name);
-    } catch (e) {
-        console.error("[LoadConditioning] upload 예외", e);
-    }
+export function uploadCond(file, node) {
+    const run = async () => {
+        const widget = node.widgets?.find(item => item.name === "filename");
+        const button = node._conditioningUpload;
+        if (!widget) return false;
+        const label = (text, detail = "") => {
+            if (button) {
+                button.label = text;
+                button.options = { ...(button.options || {}), tooltip: detail || "파일 선택 · .cond 드롭·붙여넣기 가능" };
+            }
+            app.graph?.setDirtyCanvas?.(true, true);
+        };
+        label("업로드 중…", file.name);
+        try {
+            if (!file.name.toLowerCase().endsWith(".cond")) throw new Error(".cond 파일을 선택하세요.");
+            const body = new FormData();
+            body.append("image", file, file.name);
+            body.append("overwrite", "false");
+            const response = await api.fetchApi("/upload/image", { method: "POST", body });
+            if (!response.ok) throw new Error(await readError(response));
+            const data = await response.json();
+            if (typeof data.name !== "string" || !data.name || (data.subfolder != null && typeof data.subfolder !== "string")) {
+                throw new Error("업로드 결과를 확인할 수 없습니다. 파일 목록을 확인하세요.");
+            }
+            const name = data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
+            const values = Array.isArray(widget.options?.values) ? widget.options.values : [];
+            widget.options = { ...(widget.options || {}), values: [...new Set([...values, name])] };
+            widget.value = name;
+            try {
+                widget.callback?.(name);
+            } catch (error) {
+                const detail = error instanceof Error ? error.message : String(error);
+                label("업로드 완료 · 선택 확인", `${name}\n${detail}`);
+                app.extensionManager?.toast?.add({ severity: "warn", summary: ".cond 저장 완료",
+                    detail: "파일 저장 완료. 파일 목록에서 선택을 확인하세요.", life: 7000 });
+                console.warn("[LoadConditioning] selection update failed", error);
+                return true;
+            }
+            label(".cond 업로드", name);
+            return true;
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            label("업로드 실패 · 다시 선택", detail);
+            app.extensionManager?.toast?.add({ severity: "error", summary: ".cond 업로드 실패", detail: `${detail.slice(0, 180)} 기존 선택 유지. 파일을 다시 선택하세요.`, life: 7000 });
+            console.warn("[LoadConditioning] upload failed", error);
+            return false;
+        }
+    };
+    node._conditioningUploadQueue = (node._conditioningUploadQueue || Promise.resolve()).then(run, run);
+    return node._conditioningUploadQueue;
 }
 
-function pickAndUpload(node) {
-    const inp = document.createElement("input");
-    inp.type = "file";
-    inp.accept = ".cond";
-    inp.multiple = true;
-    inp.style.display = "none";
-    document.body.append(inp);
-    inp.onchange = async () => {
-        for (const f of inp.files) await uploadCond(f, node);
-        inp.remove();
+export function pickAndUpload(node) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".cond";
+    input.multiple = true;
+    input.style.display = "none";
+    document.body.append(input);
+    input.oncancel = () => input.remove();
+    input.onchange = async () => {
+        try {
+            for (const file of input.files || []) await uploadCond(file, node);
+        } finally {
+            input.remove();
+        }
     };
-    inp.click();
+    input.click();
 }
 
 app.registerExtension({
     name: "ConditioningIO.Upload",
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData?.name !== "LoadConditioning") return;
-
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
-            const r = onNodeCreated?.apply(this, arguments);
+            const result = onNodeCreated?.apply(this, arguments);
             const node = this;
-            node.addWidget("button", "📂 .cond 업로드 (또는 드래그/붙여넣기)", "", () => pickAndUpload(node));
-
-            // 노드 위로 파일 드래그-드롭
-            node.onDragOver = (e) => !!e?.dataTransfer?.types?.includes?.("Files");
-            node.onDragDrop = (e) => {
-                const files = [...(e.dataTransfer?.files || [])].filter((f) => f.name.toLowerCase().endsWith(".cond"));
+            const button = node.addWidget("button", "conditioning_upload", null, () => pickAndUpload(node), { serialize: false });
+            button.label = ".cond 업로드";
+            button.serialize = false;
+            button.options = { ...(button.options || {}), tooltip: "파일 선택 · .cond 드롭·붙여넣기 가능" };
+            node._conditioningUpload = button;
+            node.onDragOver = event => !!event?.dataTransfer?.types?.includes?.("Files");
+            node.onDragDrop = event => {
+                const files = [...(event.dataTransfer?.files || [])].filter(file => file.name.toLowerCase().endsWith(".cond"));
                 if (!files.length) return false;
-                (async () => { for (const f of files) await uploadCond(f, node); })();
+                for (const file of files) uploadCond(file, node);
                 return true;
             };
-            return r;
+            return result;
         };
     },
-
-    // 탐색기에서 파일 복사(Ctrl+C) 후 캔버스에서 붙여넣기(Ctrl+V) — 선택된 LoadConditioning 노드로 업로드.
     setup() {
-        window.addEventListener("paste", async (e) => {
-            const files = [...(e.clipboardData?.files || [])].filter((f) => f.name.toLowerCase().endsWith(".cond"));
+        window.addEventListener("paste", async event => {
+            const files = [...(event.clipboardData?.files || [])].filter(file => file.name.toLowerCase().endsWith(".cond"));
             if (!files.length) return;
-            const sel = Object.values(app.canvas?.selected_nodes || {});
-            const node = sel.find((n) => n.comfyClass === "LoadConditioning");
+            const node = Object.values(app.canvas?.selected_nodes || {}).find(item => (item.comfyClass || item.type) === "LoadConditioning");
             if (!node) return;
-            e.preventDefault();
-            for (const f of files) await uploadCond(f, node);
+            event.preventDefault();
+            for (const file of files) await uploadCond(file, node);
         });
     },
 });

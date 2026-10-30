@@ -56,7 +56,7 @@ class VaeBrowserContractTests(unittest.TestCase):
             const node = {widgets:[{name:"vae_name",value:"chosen.vae",options:{}}]};
             applyVaeModels(node,{vae_name:["different.vae"]});
             assert.equal(node.widgets[0].value,"chosen.vae");
-            assert.match(modelStatus(node),/선택한 VAE 없음/);
+            assert.match(modelStatus(node),/VAE 없음/);
             node.widgets[0].value="";
             applyVaeModels(node,{vae_name:["first.vae","second.vae"]});
             assert.equal(node.widgets[0].value,"");
@@ -79,7 +79,7 @@ class VaeBrowserContractTests(unittest.TestCase):
             const node={widgets:[{name:"vae_name",value:"keep.vae"},{name:"server_url",value:"http://peer"},{name:"timeout_seconds",value:30}]};
             const button={name:"refresh"};
             await refreshVaeModels(node,button);
-            assert.equal(button.label,"연결 실패 · 다시 조회");
+            assert.equal(button.label,"조회 실패 · VAE 재시도");
             assert.equal(node.widgets[0].value,"keep.vae");
             assert.equal(app.notices.length,1);
             assert.ok(app.notices[0].detail.length<240);
@@ -144,7 +144,7 @@ class VaeDefinitionTests(unittest.TestCase):
             setupVaeNode(node);
             await Promise.resolve(); await Promise.resolve(); await new Promise(r=>setImmediate(r));
             assert.equal(node._remoteVaeRefresh.name,"remote_vae_models");
-            assert.match(node._remoteVaeRefresh.label,/모델 1개/);
+            assert.match(node._remoteVaeRefresh.label,/VAE 1개/);
             assert.equal(node._remoteVaeDetails.name,"remote_vae_details");
             node._remoteVaeDetails.callback();
             assert.equal(node.showAdvanced,true);
@@ -152,7 +152,7 @@ class VaeDefinitionTests(unittest.TestCase):
             assert.equal(node.widgets[2].hidden,false);
             setupVaeNode(node);
             assert.equal(node.widgets.length,5);
-            assert.equal(node._remoteVaeDetails.label,"고급 설정 숨기기");
+            assert.equal(node._remoteVaeDetails.label,"고급 접기");
             assert.equal(node._remoteVaeRefresh.serialize,false);
             assert.equal(node._remoteVaeDetails.serialize,false);
         ''', api='export const api={async fetchApi(){return {ok:true,async json(){return {vae_name:["chosen.vae"]};}};}};')

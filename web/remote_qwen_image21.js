@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-import { cleanOptions, refreshRemoteChoiceOptions, resolvePeerModelChoice } from "./remote_choices.js";
+import { applyChoiceWidget, choiceStatus, cleanOptions, refreshRemoteChoiceOptions } from "./remote_choices.js";
 
 const QWEN_NODES = new Set(["RemoteQwenImage21"]);
 
@@ -18,29 +18,23 @@ function placeAfter(node, item, anchorName) {
 
 export async function refreshPeerChoices(node, button, kind) {
     const encoder = kind === "encoder";
-    const label = encoder ? "텍스트 인코더" : "VAE";
+    const label = encoder ? "인코더" : "VAE";
     const name = encoder ? "remote_text_encoder" : "vae_name";
     return refreshRemoteChoiceOptions(node, button, {
         loadingKey: "_remoteQwenRefreshInFlight",
         path: encoder ? "/remote-conditioning/clip-loader-options" : "/remote-conditioning/vae-loader-options",
-        missingSettingsLabel: "⚠ 원격 주소를 먼저 입력하세요",
-        loadingLabel: `… 원격 ${label} 조회 중`,
-        serverChangedLabel: "↻ 원격 주소 변경됨 — 다시 조회",
-        successLabel: (count) => {
-            const target = widget(node, name);
-            return target?.options?.values?.includes(target.value)
-                ? `✓ ${label} ${count}개 — 다시 조회`
-                : `⚠ 선택한 ${label} 없음 — 목록에서 다시 선택`;
-        },
-        failureLabel: (detail) => `⚠ 조회 실패: ${detail}`,
+        widgetNames: [name],
+        missingSettingsLabel: "서버 설정 확인",
+        loadingLabel: `${label} 조회 중…`,
+        serverChangedLabel: "서버 변경됨 · 새로고침",
+        successLabel: (count) => choiceStatus(node, [name]) === "ready" ? `${label} ${count}개 · 새로고침` : `다시 선택 · ${label} 새로고침`,
+        failureLabel: () => `조회 실패 · ${label} 재시도`,
         warningPrefix: "[Remote Qwen Image 2.1] peer model lookup failed",
         apply(targetNode, payload) {
             const choices = cleanOptions(encoder ? payload?.clip_name : payload?.vae_name, name);
             const target = widget(targetNode, name);
             if (!target) throw new Error(`${name} 선택 항목을 찾을 수 없습니다`);
-            target.options = { ...(target.options || {}), values: choices };
-            target.type = "combo";
-            target.value = resolvePeerModelChoice(target.value, choices);
+            applyChoiceWidget(target, choices);
             target.callback?.(target.value, app.canvas, targetNode, app.canvas?.graph_mouse);
             return choices.length;
         },
@@ -56,14 +50,14 @@ app.registerExtension({
             const result = onNodeCreated?.apply(this, arguments);
             const encoderButton = this.addWidget(
                 "button",
-                "↻ 이 주소의 텍스트 인코더 목록 새로고침",
+                "인코더 새로고침",
                 "",
                 () => refreshPeerChoices(this, encoderButton, "encoder"),
                 { serialize: false },
             );
             const vaeButton = this.addWidget(
                 "button",
-                "↻ 이 주소의 참조 이미지 VAE 목록 새로고침",
+                "VAE 새로고침",
                 "",
                 () => refreshPeerChoices(this, vaeButton, "vae"),
                 { serialize: false },

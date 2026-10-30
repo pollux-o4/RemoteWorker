@@ -4,9 +4,9 @@ import { app } from "../../scripts/app.js";
 import { fetchJson, refreshRemoteOptions, refreshRemoteVaeOptions } from "./remote_choices.js";
 import { applyPromptProfiles, applyPromptProfilesToVueDefs, refreshPromptProfiles, updateProfileDescription, removeObsoletePromptManagerInput, setupPromptProfileManagerShortcut } from "./remote_profiles.js";
 import { normalizeMiniMaxVaeInputs, syncMiniMaxReferenceInputs, syncPromptMediaInputs, ensureVisibleImageInput } from "./remote_sockets.js";
-const REFRESH_LABEL = "↻ 원격 CLIP 목록 새로고침";
-const VAE_REFRESH_LABEL = "↻ 원격 VAE 목록 새로고침";
-const PROFILE_REFRESH_LABEL = "↻ 원격 프로필 목록 새로고침";
+const REFRESH_LABEL = "CLIP 새로고침";
+const VAE_REFRESH_LABEL = "VAE 새로고침";
+const PROFILE_REFRESH_LABEL = "프로필 새로고침";
 let startupPromptProfiles = null;
 
 app.registerExtension({
@@ -66,14 +66,13 @@ app.registerExtension({
             let vaeButton = null;
             if (isMiniMax || isVaeSelector) {
                 vaeButton = node.addWidget("button", VAE_REFRESH_LABEL, "", () => refreshRemoteVaeOptions(node, vaeButton), { serialize: false });
-                vaeButton.name = isVaeSelector
-                    ? `${VAE_REFRESH_LABEL} — MiniMax와 같은 server_url 사용`
-                    : VAE_REFRESH_LABEL;
+                vaeButton.options.tooltip = isVaeSelector ? "MiniMax 노드와 같은 서버의 VAE 선택" : "원격 VAE 목록 조회";
             }
             if (isPromptEnhancer) {
                 setupPromptProfileManagerShortcut(node);
-                const descriptionButton = node.addWidget("button", "ℹ 프로필 설명을 보려면 목록을 새로고침", "", () => {}, { serialize: false });
+                const descriptionButton = node.addWidget("button", "프로필 상세", "", () => {}, { serialize: false });
                 node._remotePromptDescriptionButton = descriptionButton;
+                updateProfileDescription(node);
                 // `addCustomNodeDefs` runs before either renderer creates its
                 // node instance.  Carry that same verified profile payload
                 // into the instance so the first media socket is visible
