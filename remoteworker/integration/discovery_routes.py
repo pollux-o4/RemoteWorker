@@ -1,14 +1,13 @@
 """Same-origin ComfyUI route for Remote Conditioning CLIP capabilities."""
 
 from __future__ import annotations
+from .. import _native
 
 import asyncio
-import shutil
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from ..core.protocol import is_valid_request_id
 from ..core.transport import HttpComfyApi
 
 ROUTE_PATH = "/remote-conditioning/clip-loader-options"
@@ -23,50 +22,15 @@ def _error(code: str, message: str) -> dict[str, dict[str, str]]:
 
 
 def _validate_payload(payload: Any) -> tuple[str, int]:
-    if not isinstance(payload, dict):
-        raise ValueError("request body must be a JSON object")
-    if set(payload) != _REQUEST_FIELDS:
-        raise ValueError("request body must contain only server_url and timeout_seconds")
-    server_url = payload["server_url"]
-    timeout_seconds = payload["timeout_seconds"]
-    if not isinstance(server_url, str) or not server_url.strip():
-        raise ValueError("server_url must be a non-empty string")
-    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int):
-        raise ValueError("timeout_seconds must be an integer")
-    if not 5 <= timeout_seconds <= 30:
-        raise ValueError("timeout_seconds must be between 5 and 30")
-    return server_url, timeout_seconds
+    return _native.proxy_config(payload)
 
 
 def _validate_options(options: Any) -> dict[str, list[str]]:
-    if not isinstance(options, Mapping) or set(options) != set(_OPTION_FIELDS):
-        raise ValueError("upstream options must contain exactly clip_name, clip_type, and device")
-    normalized: dict[str, list[str]] = {}
-    for name in _OPTION_FIELDS:
-        values = options[name]
-        if (
-            isinstance(values, (str, bytes))
-            or not isinstance(values, Sequence)
-            or not values
-            or any(not isinstance(value, str) or not value for value in values)
-        ):
-            raise ValueError(f"upstream {name} options must be a non-empty string array")
-        normalized[name] = list(values)
-    return normalized
+    return _native.proxy_options(options, ["clip_name", "clip_type", "device"])
 
 
 def _validate_vae_options(options: Any) -> dict[str, list[str]]:
-    if not isinstance(options, Mapping) or set(options) != {"vae_name"}:
-        raise ValueError("upstream options must contain exactly vae_name")
-    values = options["vae_name"]
-    if (
-        isinstance(values, (str, bytes))
-        or not isinstance(values, Sequence)
-        or not values
-        or any(not isinstance(value, str) or not value for value in values)
-    ):
-        raise ValueError("upstream vae_name options must be a non-empty string array")
-    return {"vae_name": list(values)}
+    return _native.proxy_options(options, ["vae_name"])
 
 
 def create_clip_loader_options_handler(
@@ -132,22 +96,10 @@ def create_vae_loader_options_handler(
 
 
 def discard_request_inputs(request_id: str, temp_directory: str | Path | None = None) -> bool:
-    if not is_valid_request_id(request_id):
-        raise ValueError("request_id must be 1-64 URL-safe characters")
     if temp_directory is None:
         import folder_paths
-
         temp_directory = folder_paths.get_temp_directory()
-    root = Path(temp_directory).resolve()
-    target = (root / "remote-conditioning" / request_id).resolve()
-    if target.parent != (root / "remote-conditioning").resolve():
-        raise ValueError("request directory is outside the Remote Conditioning temp root")
-    if not target.exists():
-        return False
-    if not target.is_dir():
-        raise ValueError("request temp target is not a directory")
-    shutil.rmtree(target)
-    return True
+    return _native.discard_request_inputs_native(request_id, temp_directory)
 
 
 def create_discard_inputs_handler(json_response: Callable[..., Any] | None = None) -> Callable[[Any], Any]:
@@ -161,9 +113,8 @@ def create_discard_inputs_handler(json_response: Callable[..., Any] | None = Non
     async def discard_inputs(request: Any) -> Any:
         try:
             payload = await request.json()
-            if not isinstance(payload, dict) or set(payload) != {"request_id"}:
-                raise ValueError("request body must contain only request_id")
-            removed = await asyncio.to_thread(discard_request_inputs, payload["request_id"])
+            request_id = _native.validate_request_body(payload)
+            removed = await asyncio.to_thread(discard_request_inputs, request_id)
         except (OSError, ValueError) as exc:
             return respond(_error("invalid_request", str(exc)), status=400)
         return respond({"removed": removed})

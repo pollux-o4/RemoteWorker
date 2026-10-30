@@ -11,3 +11,7 @@ remote-prompt-enhancer-profiles.json
 .env.*
 
 .ruff_cache/
+
+/target/
+*.so
+*.whl

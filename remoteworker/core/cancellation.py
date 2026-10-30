@@ -23,9 +23,8 @@ def cancellation_scope(check, *, caller_interrupt=True):
 
 
 def check_cancelled():
-    check = _check.get()
-    if check is not None and check():
-        raise RequestCancelled("Queued preparation request was cancelled or changed")
+    from .._native import check_cancelled_native
+    check_cancelled_native(_check.get(), RequestCancelled)
 
 
 def caller_interrupt_enabled():

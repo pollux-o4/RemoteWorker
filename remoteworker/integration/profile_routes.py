@@ -6,6 +6,7 @@ registry merely by changing local UI state.
 """
 
 from __future__ import annotations
+from .. import _native
 
 import asyncio
 from collections.abc import Callable
@@ -37,12 +38,7 @@ def _validate_local_profile_availability(profile: Any) -> None:
     available_names = folder_paths.get_filename_list("text_encoders")
     available_types = nodes.CLIPLoader.INPUT_TYPES()["required"]["type"][0]
     available_devices = nodes.CLIPLoader.INPUT_TYPES()["optional"]["device"][0]
-    if profile.clip_name not in available_names:
-        raise ValueError(f"Prompt enhancer profile clip_name is not available on this peer runtime: {profile.clip_name}")
-    if profile.clip_type not in available_types:
-        raise ValueError(f"Prompt enhancer profile clip_type is not supported on this peer runtime: {profile.clip_type}")
-    if profile.device not in available_devices:
-        raise ValueError(f"Prompt enhancer profile device is not supported on this peer runtime: {profile.device}")
+    return _native.validate_available_profile(profile, available_names, available_types, available_devices)
 
 
 def create_profiles_handler(
@@ -62,15 +58,13 @@ def create_profiles_handler(
             if request.method == "GET":
                 return respond(await asyncio.to_thread(_public_profiles, store))
             payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("request body must be a JSON object")
-            action = payload.get("action")
-            if action == "upsert" and set(payload) == {"action", "profile"}:
+            action = _native.profile_action(payload)
+            if action == "upsert":
                 profile = validate_profile_payload(payload["profile"])
                 _validate_local_profile_availability(profile)
                 stored = await asyncio.to_thread(store.upsert, profile.as_public_dict())
                 return respond({"profile": stored.as_public_dict()})
-            if action == "delete" and set(payload) == {"action", "profile_id"}:
+            if action == "delete":
                 deleted = await asyncio.to_thread(store.delete, payload["profile_id"])
                 return respond({"deleted": deleted})
             raise ValueError("request action must be upsert with profile or delete with profile_id")
@@ -81,15 +75,7 @@ def create_profiles_handler(
 
 
 def _validate_proxy_payload(payload: Any) -> tuple[str, int]:
-    if not isinstance(payload, dict) or set(payload) != {"server_url", "timeout_seconds"}:
-        raise ValueError("request body must contain only server_url and timeout_seconds")
-    server_url = payload["server_url"]
-    timeout_seconds = payload["timeout_seconds"]
-    if not isinstance(server_url, str) or not server_url.strip():
-        raise ValueError("server_url must be a non-empty string")
-    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 5 <= timeout_seconds <= 30:
-        raise ValueError("timeout_seconds must be between 5 and 30")
-    return server_url, timeout_seconds
+    return _native.proxy_config(payload, profile=True)
 
 
 def create_profile_options_proxy_handler(
@@ -133,14 +119,13 @@ def create_profile_manage_proxy_handler(
                 "server_url": payload.get("server_url") if isinstance(payload, dict) else None,
                 "timeout_seconds": payload.get("timeout_seconds") if isinstance(payload, dict) else None,
             })
-            if not isinstance(payload, dict) or not isinstance(payload.get("action"), str):
-                raise ValueError("request action is required")
+            action = _native.profile_action(payload, proxy=True)
             api = api_factory(server_url, timeout_seconds)
-            if payload["action"] == "upsert" and set(payload) == {"server_url", "timeout_seconds", "action", "profile"}:
+            if action == "upsert":
                 profile = validate_profile_payload(payload["profile"])
                 stored = await asyncio.to_thread(api.upsert_prompt_enhancer_profile, profile.as_public_dict())
                 return respond({"profile": stored})
-            if payload["action"] == "delete" and set(payload) == {"server_url", "timeout_seconds", "action", "profile_id"}:
+            if action == "delete":
                 deleted = await asyncio.to_thread(api.delete_prompt_enhancer_profile, payload["profile_id"])
                 return respond({"deleted": deleted})
             raise ValueError("request action must be upsert with profile or delete with profile_id")

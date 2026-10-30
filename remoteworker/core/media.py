@@ -1,6 +1,7 @@
 """Comfy media validation and lossless request encoding."""
 
 from __future__ import annotations
+from .. import _native
 
 import io
 import re
@@ -23,7 +24,7 @@ class DynamicImageInputs(dict[str, tuple[str]]):
     """Declare numbered IMAGE sockets without capping future Strategy cardinality."""
 
     def __contains__(self, key: object) -> bool:
-        return isinstance(key, str) and _DYNAMIC_IMAGE_NAME.fullmatch(key) is not None
+        return _native.image_socket_name(key)
 
     def __getitem__(self, key: str) -> tuple[str]:
         if key not in self:
@@ -55,31 +56,8 @@ class DynamicImageAndPolicyInputs(DynamicImageInputs):
 
 
 def ordered_image_frames(image_count: int, **images: Any) -> list[Any]:
-    """Flatten numbered IMAGE batches while preserving socket and batch order."""
-    if (
-        not isinstance(image_count, int)
-        or isinstance(image_count, bool)
-        or not 0 <= image_count <= _MAX_IMAGE_ATTACHMENTS
-    ):
-        raise ValueError(f"Remote Conditioning image_count must be 0 to {_MAX_IMAGE_ATTACHMENTS}")
-    frames: list[Any] = []
-    for index in range(1, image_count + 1):
-        name = f"image_{index}"
-        if name not in images or images[name] is None:
-            raise ValueError(f"Remote Conditioning requires connected {name}")
-        batch = images[name]
-        shape = getattr(batch, "shape", None)
-        if not isinstance(shape, (tuple, list)) or len(shape) != 4:
-            raise ValueError(f"Remote Conditioning {name} must be a BHWC IMAGE tensor")
-        count, height, width, channels = shape
-        if not all(isinstance(value, int) and value > 0 for value in (count, height, width)) or channels not in {3, 4}:
-            raise ValueError(f"Remote Conditioning {name} has an invalid IMAGE shape: {shape!r}")
-        frames.extend(batch[batch_index] for batch_index in range(count))
-        if len(frames) > _MAX_IMAGE_ATTACHMENTS:
-            raise ValueError(
-                f"Remote Conditioning accepts at most {_MAX_IMAGE_ATTACHMENTS} image attachments per request"
-            )
-    return frames
+    from .._native import ordered_image_frames as ordered
+    return ordered(image_count, images)
 
 
 def encode_image_frame_png(frame: Any) -> bytes:
@@ -91,12 +69,10 @@ def encode_image_frame_png(frame: Any) -> bytes:
         array = frame.detach().to(device="cpu").float().numpy()
     except (AttributeError, TypeError, ValueError) as exc:
         raise ValueError("Remote Conditioning image attachment must be a tensor frame") from exc
-    if array.ndim != 3 or array.shape[2] not in {3, 4} or not np.isfinite(array).all():
-        raise ValueError(f"Remote Conditioning image attachment has invalid HWC data: {array.shape!r}")
+    mode = _native.image_array_mode(array.shape, bool(np.isfinite(array).all()))
     pixels = np.rint(np.clip(array, 0.0, 1.0) * 255.0).astype(np.uint8)
     output = io.BytesIO()
-    Image.fromarray(pixels, "RGBA" if pixels.shape[2] == 4 else "RGB").save(output, format="PNG")
+    Image.fromarray(pixels, mode).save(output, format="PNG")
     data = output.getvalue()
-    if not data or len(data) > _MAX_IMAGE_BYTES:
-        raise ValueError("Remote Conditioning encoded image exceeds the 32 MiB limit")
+    _native.check_image_budget(len(data), _MAX_IMAGE_BYTES)
     return data

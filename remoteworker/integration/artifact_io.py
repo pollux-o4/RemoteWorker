@@ -10,6 +10,7 @@ UI: LoadConditioning 노드는 LoadImage 처럼 업로드 버튼·드래그-드�
 `.cond` v1에는 호환성 메타데이터가 없으므로, 이 확인은 현재 작업자가 수행한다.
 """
 import os
+from .. import _native
 
 import torch
 
@@ -157,8 +158,7 @@ class SaveRemoteLatent:
     CATEGORY = "conditioning/io"
 
     def save(self, samples, filename_prefix, dependency=None):
-        if not isinstance(samples, dict) or "samples" not in samples:
-            raise ValueError("Save Remote Latent requires a LATENT dictionary with samples")
+        _native.validate_latent_dictionary(samples, "Save Remote Latent requires a LATENT dictionary with samples")
         full, name, counter, subfolder, _ = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         os.makedirs(full, exist_ok=True)
         file = f"{name}_{counter:05}_.latent"
@@ -188,8 +188,7 @@ class SaveRemoteText:
     CATEGORY = "conditioning/io"
 
     def save(self, text, filename_prefix):
-        if not isinstance(text, str) or not text.strip() or "\x00" in text:
-            raise ValueError("Save Remote Text requires a non-empty UTF-8 text value")
+        _native.validate_text(text, "Save Remote Text requires a non-empty UTF-8 text value")
         full, name, counter, subfolder, _ = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         os.makedirs(full, exist_ok=True)
         file = f"{name}_{counter:05}_.txt"
