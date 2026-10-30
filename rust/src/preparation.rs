@@ -1,4 +1,7 @@
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{
+    prelude::*,
+    types::{PyBool, PyDict},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 enum Decision {
@@ -52,6 +55,23 @@ pub struct SamplingProgress {
     #[pyo3(get)]
     total: i64,
 }
+fn step_count(value: &Bound<'_, PyAny>) -> Option<i64> {
+    if value.is_instance_of::<PyBool>() {
+        return None;
+    }
+    if let Ok(value) = value.extract::<i64>() {
+        return Some(value);
+    }
+    let value = value.extract::<f64>().ok()?;
+    if !value.is_finite()
+        || value.fract() != 0.0
+        || value < i64::MIN as f64
+        || value >= i64::MAX as f64
+    {
+        return None;
+    }
+    Some(value as i64)
+}
 #[pymethods]
 impl SamplingProgress {
     #[new]
@@ -63,7 +83,16 @@ impl SamplingProgress {
             total: 0,
         }
     }
-    fn update(&mut self, job: String, node: String, value: i64, total: i64) {
+    fn update(
+        &mut self,
+        job: String,
+        node: String,
+        value: &Bound<'_, PyAny>,
+        total: &Bound<'_, PyAny>,
+    ) {
+        let (Some(value), Some(total)) = (step_count(value), step_count(total)) else {
+            return;
+        };
         if total <= 0 || value < 0 || value > total || (total == 1 && value == 0) {
             return;
         }

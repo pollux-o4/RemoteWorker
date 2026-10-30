@@ -62,6 +62,50 @@ class SchedulingPolicyTests(unittest.TestCase):
         c.reset()
         self.assertEqual(c.detail("A"), {})
 
+    def test_native_progress_accepts_integral_float_counts_and_ignores_placeholders(self):
+        c = SamplingProgress()
+        c.update("A", "sample", 0.0, 1.0)
+        self.assertEqual(c.detail("A"), {})
+        c.update("A", "sample", 1.0, 1.0)
+        self.assertEqual(c.detail("A"), {"step": 1, "total": 1})
+        c.update("B", "sample", 5.0, 128.0)
+        self.assertEqual(c.detail("B"), {"step": 5, "total": 128})
+        for value, total in ((0.5, 1.0), (1, 128.5), (float("nan"), 128),
+                             (1, float("inf")), (None, 128), ("ready", 128),
+                             (True, 128), (2**64, 2**64)):
+            c.update("invalid", "sample", value, total)
+            self.assertEqual(c.detail("B"), {"step": 5, "total": 128})
+            self.assertEqual(c.detail("invalid"), {})
+
+    def test_float_progress_event_preserves_native_send_and_reconciliation(self):
+        from threading import Event
+        from unittest.mock import patch
+        from remoteworker.preparation.events import EventBridge
+        from remoteworker.preparation.scheduler import Scheduler
+        calls = []
+        registry = SimpleNamespace(prompt_id="A", dynprompt=SimpleNamespace(
+            get_node=lambda key: {"class_type": "SamplerCustomAdvanced"}))
+        owner = SimpleNamespace(wake=Event(), scheduler=Scheduler())
+        server = SimpleNamespace(send_sync=lambda *args: calls.append(args))
+        bridge = EventBridge(server, owner)
+        data = {"prompt_id": "A", "nodes": {"sample": {"state": "running", "value": 0.0, "max": 1.0}}}
+        with patch("remoteworker.preparation.events._progress_registry", return_value=registry):
+            server.send_sync("progress_state", data, "client-A")
+            self.assertEqual(owner.scheduler.sampling.detail("A"), {})
+            data["nodes"]["sample"].update(value=1.0, max=1.0)
+            server.send_sync("progress_state", data, "client-A")
+            self.assertEqual(owner.scheduler.sampling.detail("A"), {"step": 1, "total": 1})
+            data["nodes"]["sample"].update(value=5.0, max=128.0)
+            server.send_sync("progress_state", data, "client-A")
+            self.assertEqual(owner.scheduler.decide("A").remaining_steps, 123)
+            data["nodes"]["sample"]["value"] = 5.5
+            server.send_sync("progress_state", data, "client-A")
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(all(call[0] == "progress_state" and call[1] is data and call[2] == "client-A" for call in calls))
+        self.assertEqual(owner.scheduler.sampling.detail("A"), {"step": 5, "total": 128})
+        self.assertEqual(bridge.errors, 0)
+        self.assertTrue(owner.wake.is_set())
+
     def test_event_adapter_preserves_native_routing(self):
         from threading import Event
         from remoteworker.preparation.events import EventBridge
