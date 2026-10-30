@@ -16,3 +16,6 @@ def encoder_types():
 
 def decoder_types():
     return preparation_decoders(registered())
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['Preparation']

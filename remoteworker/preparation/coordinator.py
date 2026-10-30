@@ -102,3 +102,6 @@ class Coordinator:
     def start(self):
         self.wake.set()
         Thread(target=self.run, daemon=True, name="remote-preparation").start()
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['pipeline', 'prefetch', 'prepare_vae', 'snapshot']

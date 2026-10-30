@@ -250,8 +250,88 @@ fn prep_managed_call(
     }
 }
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(prep_bind_values, m)?)?;
+    m.add_function(wrap_pyfunction!(prep_peer_available, m)?)?;
+    m.add_function(wrap_pyfunction!(prep_require_idle_peer, m)?)?;
+    m.add_function(wrap_pyfunction!(prep_register_targets, m)?)?;
+    m.add_function(wrap_pyfunction!(prep_resolve_inputs, m)?)?;
     m.add_class::<ForegroundLease>()?;
     m.add_function(wrap_pyfunction!(prep_foreground_lease, m)?)?;
     m.add_function(wrap_pyfunction!(prep_managed_call, m)?)?;
     Ok(())
+}
+
+#[pyfunction]
+fn prep_bind_values(
+    function: &Bound<'_, PyAny>,
+    values: &Bound<'_, PyDict>,
+) -> PyResult<Py<PyDict>> {
+    let py = values.py();
+    let bound = py
+        .import("inspect")?
+        .call_method1("signature", (function,))?
+        .call_method("bind", (py.None(),), Some(values))?;
+    bound.call_method0("apply_defaults")?;
+    let result = bound.getattr("arguments")?.cast_into::<PyDict>()?.copy()?;
+    if result.contains("self")? {
+        result.del_item("self")?;
+    }
+    Ok(result.unbind())
+}
+#[pyfunction]
+fn prep_peer_available(queue: &Bound<'_, PyAny>) -> PyResult<bool> {
+    Ok(!queue.call_method1("get", ("queue_running",))?.is_truthy()?
+        && !queue.call_method1("get", ("queue_pending",))?.is_truthy()?)
+}
+#[pyfunction]
+fn prep_require_idle_peer(queue: &Bound<'_, PyAny>) -> PyResult<()> {
+    if !prep_peer_available(queue)? {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err("peer_busy"));
+    }
+    Ok(())
+}
+#[pyfunction]
+fn prep_register_targets(
+    capabilities: &Bound<'_, PyDict>,
+    managed: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyDict>> {
+    let py = capabilities.py();
+    let result = PyDict::new(py);
+    for (name, value) in capabilities.iter() {
+        let cls = value.get_item(0)?;
+        let spec = value.get_item(1)?;
+        let executor = spec.getattr("executor")?;
+        let target = if executor.is_truthy()? { executor } else { cls };
+        let role = spec.getattr("role")?;
+        target.setattr("run", managed.call1((target.getattr("run")?, &role))?)?;
+        if role.extract::<String>()? == "encoder" {
+            result.set_item(name, target)?;
+        }
+    }
+    Ok(result.unbind())
+}
+#[pyfunction]
+fn prep_resolve_inputs(
+    graph: Py<PyDict>,
+    classes: Py<PyDict>,
+    node_id: &str,
+    decoders: &Bound<'_, PyAny>,
+    check_cancelled: Py<PyAny>,
+) -> PyResult<Py<PyDict>> {
+    let py = decoders.py();
+    let node = graph
+        .bind(py)
+        .get_item(node_id)?
+        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(node_id.to_owned()))?;
+    let class = node.get_item("class_type")?;
+    let exclude = if decoders.contains(class)? {
+        PyTuple::new(py, ["samples", "warmup", "latent"])?
+    } else {
+        PyTuple::empty(py)
+    };
+    super::Resolver::new(py, graph, classes, check_cancelled).resolve_inputs(
+        py,
+        node_id,
+        Some(exclude.as_any()),
+    )
 }

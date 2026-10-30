@@ -157,11 +157,11 @@ fn head(pending: &Bound<'_, PyAny>) -> PyResult<Option<Py<PyAny>>> {
     let mut best: Option<Bound<'_, PyAny>> = None;
     for item in pending.try_iter()? {
         let item = item?;
-        if best.as_ref().is_none_or(|b| {
-            item.get_item(0)
-                .and_then(|v| v.lt(b.get_item(0)?))
-                .unwrap_or(false)
-        }) {
+        let replace = match best.as_ref() {
+            None => true,
+            Some(best) => item.get_item(0)?.lt(best.get_item(0)?)?,
+        };
+        if replace {
             best = Some(item);
         }
     }

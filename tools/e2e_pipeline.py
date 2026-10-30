@@ -3,7 +3,7 @@ import json,urllib.request,time
 from pathlib import Path
 import argparse
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--server',default='http://127.0.0.1:18294')
+parser.add_argument('--server',default='http://127.0.0.1:18491')
 parser.add_argument('--log',default='/tmp/pipeline-dev-events.jsonl')
 args=parser.parse_args()
 base=args.server.rstrip('/')
@@ -18,7 +18,7 @@ import uuid
 run_token=uuid.uuid4().hex
 start=time.monotonic();ids=[]
 for tag in ('A','B','C'):
- graph={'s':{'class_type':'PipelineSampler','inputs':{'tag':tag,'delay':0.6,'model':['m',0]}},'d':{'class_type':'RemoteVAEDecode','inputs':{'samples':['s',0],'vae_name':'test.vae','server_url':'http://127.0.0.1:18299','timeout_seconds':30,'memory_policy':'keep','output_mode':'tensor','tiled':False,'tile_size':512,'overlap':64,'temporal_size':64,'temporal_overlap':8}},'p':{'class_type':'PipelineSink','inputs':{'image':['d',0],'tag':tag}}}
+ graph={'s':{'class_type':'PipelineSampler','inputs':{'tag':tag,'delay':0.6,'model':['m',0]}},'d':{'class_type':'PipelineRemoteDecode','inputs':{'samples':['s',0],'server_url':'http://pipeline-fixture.invalid','delay':1.5}},'p':{'class_type':'PipelineSink','inputs':{'image':['d',0],'tag':tag}}}
  graph['m']={'class_type':'PipelineModel','inputs':{'strength':0.5 if tag=='C' else 1.0,'token':run_token}}
  ids.append(req('/prompt',{'prompt':graph,'client_id':'pipeline-test'})['prompt_id'])
 end=time.monotonic()+15
@@ -32,7 +32,7 @@ for pid,h,tag in zip(ids,histories,('A','B','C')):
  assert result['outputs']['p']['tag']==[tag],result
 print('PASS native queue histories and downstream previews retain original prompt IDs',ids)
 events=[json.loads(l) for l in Path(args.log).read_text().splitlines()]
-events=[e for e in events if e['at']>=start]
+events=[e for e in events if e['prompt'] in ids]
 print([(e['event'],round(e['at']-start,3),e['prompt']) for e in events])
 a=next(e for e in events if e['event']=='sample-end-A')
 b=next(e for e in events if e['event']=='sample-start-B')
@@ -48,7 +48,7 @@ print(req('/remoteworker/preparation')['pipeline'])
 for endpoint in ('interrupt','jobs'):
  ids=[]
  for tag in ('A','B'):
-  graph={'s':{'class_type':'PipelineSampler','inputs':{'tag':tag,'delay':0.6}},'d':{'class_type':'RemoteVAEDecode','inputs':{'samples':['s',0],'vae_name':'test.vae','server_url':'http://127.0.0.1:18299','timeout_seconds':30,'memory_policy':'keep','output_mode':'tensor','tiled':False,'tile_size':512,'overlap':64,'temporal_size':64,'temporal_overlap':8}},'p':{'class_type':'PipelineSink','inputs':{'image':['d',0],'tag':tag}}}
+  graph={'s':{'class_type':'PipelineSampler','inputs':{'tag':tag,'delay':0.6}},'d':{'class_type':'PipelineRemoteDecode','inputs':{'samples':['s',0],'server_url':'http://pipeline-fixture.invalid','delay':1.5}},'p':{'class_type':'PipelineSink','inputs':{'image':['d',0],'tag':tag}}}
   ids.append(req('/prompt',{'prompt':graph,'client_id':'pipeline-test'})['prompt_id'])
  end=time.monotonic()+10
  while time.monotonic()<end:
@@ -78,10 +78,8 @@ async def check_early_preview():
  for tag, delay in [('early-A', 0.1), ('long-B', 4.0)]:
   graph = {
    's': {'class_type': 'PipelineSampler', 'inputs': {'tag': tag, 'delay': delay}},
-   'd': {'class_type': 'RemoteVAEDecode', 'inputs': {'samples': ['s', 0], 'vae_name': 'test.vae',
-          'server_url': 'http://127.0.0.1:18299', 'timeout_seconds': 30, 'memory_policy': 'keep',
-          'output_mode': 'tensor', 'tiled': False, 'tile_size': 512, 'overlap': 64,
-          'temporal_size': 64, 'temporal_overlap': 8}},
+   'd': {'class_type': 'PipelineRemoteDecode', 'inputs': {'samples': ['s', 0],
+          'server_url': 'http://pipeline-fixture.invalid', 'delay': 1.5}},
    'p': {'class_type': 'PreviewImage', 'inputs': {'images': ['d', 0]}}}
   preview_ids.append(req('/prompt', {'prompt': graph, 'client_id': client_id})['prompt_id'])
  try:

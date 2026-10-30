@@ -50,6 +50,8 @@ fn drop_attempt(owner: &Bound<'_, PyAny>, token: &Bound<'_, PyAny>) -> PyResult<
         Err(err) => Err(err),
     }
 }
+// Python host adapter ABI mirrors the registered prefetch callback.
+#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature=(source,owner,current,following,graph,node_id,node,values,token,*,allow_after_sampling=false))]
 fn prep_prefetch(
@@ -177,7 +179,14 @@ fn prep_prefetch(
                         let handoff_module = py.import(
                             format!(
                                 "{}.handoff",
-                                source.name()?.to_str()?.rsplit_once('.').unwrap().0
+                                source
+                                    .name()?
+                                    .to_str()?
+                                    .rsplit_once('.')
+                                    .map(|(parent, _)| parent)
+                                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                                        "Preparation adapter requires a package module"
+                                    ))?
                             )
                             .as_str(),
                         )?;

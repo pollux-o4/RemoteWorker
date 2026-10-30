@@ -2,7 +2,6 @@
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-import inspect
 
 _speculative = ContextVar("remote_preparation_speculative", default=False)
 
@@ -20,7 +19,7 @@ def speculative_call():
         _speculative.reset(token)
 
 
-def call_values(function, values):
-    bound = inspect.signature(function).bind(None, **values)
-    bound.apply_defaults()
-    return {k: v for k, v in bound.arguments.items() if k != "self"}
+from .._native import prep_bind_values as call_values
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['call_values']

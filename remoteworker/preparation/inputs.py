@@ -5,3 +5,6 @@ from .._native import Resolver as _Resolver, UnsupportedInput
 
 def Resolver(graph, classes):
     return _Resolver(graph, classes, check_cancelled)
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['UnsupportedInput']

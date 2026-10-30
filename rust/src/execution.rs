@@ -1,6 +1,7 @@
 //! Preparation admission and execution ownership; host calls stay at the FFI boundary.
 mod actions;
 mod coordinator;
+mod host;
 mod integration;
 mod previews;
 
@@ -148,6 +149,8 @@ enum Phase {
     Local,
     Remote,
     Ready,
+    Restoring,
+    Failed,
 }
 impl Phase {
     fn label(self) -> &'static str {
@@ -155,6 +158,8 @@ impl Phase {
             Self::Local => "local",
             Self::Remote => "remote",
             Self::Ready => "ready",
+            Self::Restoring => "restoring",
+            Self::Failed => "failed",
         }
     }
 }
@@ -267,18 +272,45 @@ impl SlotState {
         self.ready += 1;
         Ok(())
     }
-    fn resume(&mut self, py: Python<'_>, job: Py<Job>) -> PyResult<()> {
+    fn reenter(&mut self, py: Python<'_>, job: Py<Job>) -> PyResult<()> {
         if self.active.is_some() {
             return Err(PyValueError::new_err("Pipeline local slot already owned"));
         }
         let mut job = job.borrow_mut(py);
         if job.phase != Phase::Ready {
             return Err(PyValueError::new_err(
-                "Pipeline resume requires a ready job",
+                "Pipeline reentry requires a ready job",
             ));
         }
-        job.phase = Phase::Local;
+        job.phase = Phase::Restoring;
         self.ready -= 1;
+        Ok(())
+    }
+    fn restore_failed(&mut self, py: Python<'_>, job: Py<Job>) -> PyResult<()> {
+        let mut job = job.borrow_mut(py);
+        if job.phase != Phase::Restoring {
+            return Err(PyValueError::new_err(
+                "Pipeline restore failure requires reentry",
+            ));
+        }
+        job.phase = Phase::Failed;
+        Ok(())
+    }
+    fn resume(&mut self, py: Python<'_>, job: Py<Job>) -> PyResult<()> {
+        if self.active.is_some() {
+            return Err(PyValueError::new_err("Pipeline local slot already owned"));
+        }
+        let mut job = job.borrow_mut(py);
+        match job.phase {
+            Phase::Ready => self.ready -= 1,
+            Phase::Restoring => (),
+            _ => {
+                return Err(PyValueError::new_err(
+                    "Pipeline resume requires a ready job",
+                ));
+            }
+        }
+        job.phase = Phase::Local;
         self.active = Some(job.prompt_id.clone());
         Ok(())
     }
@@ -325,6 +357,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     actions::register(m)?;
     integration::register(m)?;
     previews::register(m)?;
+    host::register(m)?;
     m.add_class::<PeerGate>()?;
     m.add_function(wrap_pyfunction!(gate, m)?)?;
     m.add_class::<Job>()?;

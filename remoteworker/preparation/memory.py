@@ -1,22 +1,12 @@
-"""Release disposable result caches under RAM pressure; preserve queued handoffs."""
-
+"""Host measurement and GC adapters for native pressure relief."""
 import gc
+import sys
 import time
+from .._native import memory_snapshot as snapshot, PressureRelief as _PressureRelief
 
 
-from .._native import memory_snapshot as snapshot
+def PressureRelief(clear):
+    return _PressureRelief(clear, sys.modules[__name__])
 
-
-class PressureRelief:
-    def __init__(self, clear):
-        self.clear = clear
-        self.last = 0
-
-    def tick(self):
-        state = snapshot()
-        from .._native import memory_pressure
-        if memory_pressure(state.get("available"), time.monotonic(), self.last):
-            self.clear()
-            gc.collect()
-            self.last = time.monotonic()
-        return state
+# Native callback namespace and public compatibility exports.
+__all__ = ['gc', 'snapshot', 'time']

@@ -1,7 +1,6 @@
 """ComfyUI adapter; ordinary nodes keep owning conditioning caches and decoding."""
 
 from functools import wraps
-from contextlib import contextmanager
 import sys
 from .. import _native, pipeline
 from ..core.transport import _raise_if_caller_interrupted
@@ -11,7 +10,6 @@ import os
 import time
 from .coordinator import Coordinator
 from .invocation import is_speculative
-from .gates import gate
 from .capabilities import discover
 
 coordinator = None
@@ -62,29 +60,21 @@ def register(classes):
     if os.environ.get("REMOTEWORKER_AUTOPREPARE", "1") == "0":
         return
     capabilities = discover(classes)
-    encoders = {}
-    decoders = {name for name, (_, spec) in capabilities.items() if spec.role == "decoder"}
-    for name, (cls, spec) in capabilities.items():
-        target = spec.executor or cls
-        target.run = managed(target.run, spec.role)
-        if spec.role == "encoder":
-            encoders[name] = target
+    encoders = _native.prep_register_targets(capabilities, managed)
+    decoders = _native.preparation_decoders(capabilities)
 
     def warmup(url, model, kind):
         from ..vae.service import execute_warmup, peer_api
 
         api = peer_api(url, 120)
-        # Never insert speculative work ahead of somebody else's peer queue.
-        queue = api._json("/queue")
-        if queue.get("queue_running") or queue.get("queue_pending"):
-            raise RuntimeError("peer_busy")
+        _native.prep_require_idle_peer(api._json("/queue"))
         execute_warmup(api, vae_name=model, kind=kind, server_url=url, background=False)
 
     def available(url):
         from ..core.transport import HttpComfyApi
 
         queue = HttpComfyApi(url, 2)._json("/queue")
-        return not (queue.get("queue_running") or queue.get("queue_pending"))
+        return _native.prep_peer_available(queue)
 
     from .execution_state import sampling_now
     from .memory import PressureRelief
@@ -98,7 +88,7 @@ def register(classes):
     relief = PressureRelief(clear_disposable)
     from .scheduler import Scheduler
     from .events import EventBridge
-    from .inputs import Resolver
+    from ..core.cancellation import check_cancelled
     from .handoff import Handoffs
     import nodes
 
@@ -108,12 +98,8 @@ def register(classes):
         warmup,
         available,
         sampling_now,
-        resolve=lambda graph, key: Resolver(graph, nodes.NODE_CLASS_MAPPINGS).inputs(
-            key,
-            exclude=("samples", "warmup", "latent")
-            if graph[key]["class_type"] in decoders
-            else (),
-        ),
+        resolve=lambda graph, key: _native.prep_resolve_inputs(
+            graph, nodes.NODE_CLASS_MAPPINGS, key, decoders, check_cancelled),
         handoffs=Handoffs(),
         relief=relief,
         scheduler=Scheduler(),
@@ -127,3 +113,6 @@ def register(classes):
         return web.json_response(coordinator.status())
 
     coordinator.start()
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['head', 'is_speculative', 'pipeline', 'time']

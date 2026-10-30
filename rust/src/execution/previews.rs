@@ -35,6 +35,8 @@ fn pipeline_preview_cached(
         Some(ui.unbind())
     })
 }
+// Python host adapter ABI mirrors the native preview publication callback.
+#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature=(adapter,job,dynprompt,decoder_id,result,extra,outputs,list_index=0))]
 fn pipeline_preview_publish(

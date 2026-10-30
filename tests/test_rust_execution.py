@@ -27,12 +27,18 @@ class NativeExecutionTests(unittest.TestCase):
     def test_restore_failure_does_not_leave_a_ready_reservation(self):
         slots = Slots(lambda job: None, lambda *_: (_ for _ in ()).throw(ValueError("restore")))
         with slots.lock:
-            with self.assertRaisesRegex(ValueError, "restore"):
-                with slots.job("A", None):
+            with slots.job("A", None):
+                with self.assertRaisesRegex(ValueError, "restore"):
                     slots.remote(lambda: None)
-            self.assertTrue(slots.lock.locked())
+                self.assertTrue(slots.lock.locked())
+                self.assertEqual(slots.ready, 0)
+                self.assertIsNone(slots.active)
+                self.assertEqual(slots.status()["jobs"][0]["phase"], "failed")
+            with slots.job("B", None):
+                self.assertEqual(slots.active, "B")
         self.assertEqual(slots.ready, 0)
         self.assertEqual(slots.status()["jobs"], [])
+        self.assertIsNone(slots.active)
 
     def test_foreground_waiter_precedes_speculation_and_wait_releases_gil(self):
         gate = PeerGate()
@@ -86,3 +92,101 @@ class NativeExecutionTests(unittest.TestCase):
         del lease
         gc.collect()
         self.assertFalse(gate.busy)
+
+
+class NativeHostTests(unittest.TestCase):
+    def fixture(self, prompt_id="A"):
+        from types import ModuleType, SimpleNamespace
+        import logging
+        from remoteworker.pipeline.host import ComfyHost
+        host = ComfyHost(SimpleNamespace(nodes=SimpleNamespace(interrupt_processing=lambda: calls.append("interrupt"))))
+        calls = []
+        host.slots = Slots(lambda job: None, lambda *_: None)
+        host.server = SimpleNamespace(client_id="client-A", workflow_metadata={}, send_sync=lambda *args: calls.append(("event", args)))
+        host.assets = SimpleNamespace(pause_background_scan=lambda: calls.append("pause"))
+        host.housekeeping = lambda: calls.append("housekeeping")
+        executor = SimpleNamespace(status_messages=[], success=True, history_result={"outputs": {}})
+        def execute(*args):
+            calls.append(("execute", args))
+            executor.success = True
+            executor.history_result = {"outputs": {"save": {"images": []}}}
+        executor.execute = execute
+        executor.add_message = lambda *args, **kwargs: calls.append(("message", args, kwargs))
+        host.executor = lambda: executor
+        prompt = (0, prompt_id, {"save": {"class_type": "SaveImage"}}, {"client_id": "client-A"}, ["save"], {"auth": "secret"}, "metadata")
+        items = [(prompt, "item-A")]
+        def take(**kwargs):
+            self.assertEqual(kwargs, {"timeout": 0.1})
+            return items.pop(0) if items else None
+        def done(item_id, result, **kwargs):
+            calls.append(("done", item_id, result, kwargs["status"], kwargs["process_item"](prompt)))
+            host.queue.currently_running.pop(item_id, None)
+        host.queue = SimpleNamespace(mutex=threading.Lock(), currently_running={"item-A": prompt}, get=take, task_done=done)
+        source = ModuleType("host_fixture")
+        source.time = SimpleNamespace(monotonic=lambda: 100.0, perf_counter=lambda: 100.0)
+        source.snapshot = lambda: {"available": 8 * 1024**3}
+        source.logging = logging
+        return host, executor, source, SimpleNamespace(ExecutionStatus=lambda **kwargs: SimpleNamespace(**kwargs)), calls
+
+    def test_native_worker_executes_and_strips_sensitive_history(self):
+        from remoteworker._native import host_worker_tick
+        host, executor, source, queue_type, calls = self.fixture()
+        self.assertIs(host_worker_tick(host, None, source, queue_type), executor)
+        execution = next(value for value in calls if isinstance(value, tuple) and value[0] == "execute")
+        self.assertEqual(execution[1][1], "A")
+        self.assertEqual(execution[1][2]["auth"], "secret")
+        completion = next(value for value in calls if isinstance(value, tuple) and value[0] == "done")
+        self.assertTrue(completion[3].completed)
+        self.assertEqual(len(completion[4]), 6)
+        self.assertNotIn({"auth": "secret"}, completion[4])
+        self.assertEqual(host.slots.status()["jobs"], [])
+        self.assertIsNone(host.slots.active)
+        self.assertEqual(host.server.workflow_metadata, {})
+
+    def test_cancellation_before_slot_creation_skips_only_that_executor(self):
+        from remoteworker._native import host_worker_tick
+        host, executor, source, queue_type, calls = self.fixture()
+        self.assertTrue(host.cancel("A"))
+        self.assertTrue(host.policy.pending("A"))
+        host_worker_tick(host, None, source, queue_type)
+        self.assertFalse(host.policy.pending("A"))
+        self.assertFalse(any(isinstance(value, tuple) and value[0] == "execute" for value in calls))
+        self.assertFalse(executor.success)
+        self.assertFalse(host.cancel("A"))
+        self.assertFalse(host.policy.pending("A"))
+        self.assertNotIn("interrupt", calls)
+        self.assertEqual(host.slots.ready, 0)
+
+    def test_ram_pressure_leaves_next_prompt_pending(self):
+        from remoteworker._native import host_worker_tick
+        host, executor, source, queue_type, calls = self.fixture()
+        source.snapshot = lambda: {"available": 1}
+        with host.slots.job("previous", None) as previous:
+            host.slots.state.suspend(previous)
+            host.queue.get = lambda **_: self.fail("RAM admission removed a pending prompt")
+            self.assertIs(host_worker_tick(host, executor, source, queue_type), executor)
+            self.assertEqual(host.admission, "ram_pressure")
+            self.assertFalse(any(isinstance(value, tuple) and value[0] == "execute" for value in calls))
+        self.assertEqual(host.slots.status()["jobs"], [])
+
+    def test_execution_failure_commits_error_and_releases_local_slot(self):
+        from remoteworker._native import host_worker_tick
+        host, executor, source, queue_type, calls = self.fixture()
+        executor.execute = lambda *_: (_ for _ in ()).throw(ValueError("model failed"))
+        with self.assertLogs("host_fixture", level="ERROR"):
+            host_worker_tick(host, executor, source, queue_type)
+        completion = next(value for value in calls if isinstance(value, tuple) and value[0] == "done")
+        self.assertEqual(completion[3].status_str, "error")
+        self.assertFalse(completion[3].completed)
+        self.assertEqual(host.slots.status()["jobs"], [])
+        self.assertIsNone(host.slots.active)
+        self.assertEqual(host.slots.ready, 0)
+
+    def test_malformed_interrupt_never_becomes_cancel_all(self):
+        from remoteworker._native import host_interrupt
+        host, _, _, _, calls = self.fixture()
+        for payload in ([], "A", {"prompt_id": False}, {"prompt_id": ""}, {"prompt_id": 1}):
+            with self.assertRaises(ValueError):
+                host_interrupt(host, payload)
+        self.assertFalse(host.policy.pending("A"))
+        self.assertEqual(calls, [])

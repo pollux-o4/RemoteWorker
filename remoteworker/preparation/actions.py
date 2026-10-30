@@ -18,3 +18,6 @@ def prefetch(owner, current, following, graph, node_id, node, values, token, *, 
 def prepare_vae(owner, current, decoder):
     from .._native import prep_prepare_vae
     return prep_prepare_vae(sys.modules[__name__], owner, current, decoder)
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['RequestCancelled', 'call_values', 'caller_interrupt_enabled', 'cancellation_scope', 'check_cancelled', 'gate', 'graph_contract', 'registered', 'speculative_call', 'time']

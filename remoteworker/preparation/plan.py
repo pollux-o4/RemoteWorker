@@ -14,3 +14,6 @@ def first_decoder(graph):
 
 def pending_encoders(pending, completed):
     return iter(_native.pending_encoders(pending, completed, encoder_types()))
+
+# Native callback namespace and public compatibility exports.
+__all__ = ['fingerprint', 'graph_contract', 'head', 'is_sampling', 'job_graph', 'literal_inputs', 'reachable']

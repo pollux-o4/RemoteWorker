@@ -51,7 +51,14 @@ class Slots:
             with self.guard:
                 self.state.completed(job)
             self.lock.acquire()
-            self.restore(job, saved)
+            with self.guard:
+                self.state.reenter(job)
+            try:
+                self.restore(job, saved)
+            except BaseException:
+                with self.guard:
+                    self.state.restore_failed(job)
+                raise
             with self.guard:
                 self.state.resume(job)
 
