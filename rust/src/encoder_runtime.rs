@@ -775,10 +775,7 @@ fn prompt_execute<'py>(
     } else {
         videos
     };
-    let native = m.py().import("remoteworker._native")?;
-    native
-        .getattr("validate_prompt_media_native")?
-        .call1((&profile, images.len()?, &videos))?;
+    crate::encoder_policy::validate_prompt_media_native(&profile, images.len()?, &videos)?;
     let request = m
         .getattr("RequestInputs")?
         .call1((&api, field(v, "request_id")?))?;
@@ -863,6 +860,7 @@ fn prompt_run<'py>(m: &Bound<'py, PyAny>, v: &Bound<'py, PyDict>) -> PyResult<Bo
     Ok(PyTuple::new(m.py(), [call(m, "execute", &args)?])?.into_any())
 }
 #[pyfunction]
+#[allow(clippy::too_many_arguments)] // Comfy node ABI; field names preserved for saved workflows.
 fn prompt_generate_native(
     module: &Bound<'_, PyAny>,
     clip: &Bound<'_, PyAny>,

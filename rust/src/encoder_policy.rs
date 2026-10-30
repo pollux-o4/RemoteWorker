@@ -286,7 +286,7 @@ pub(crate) fn qwen_resize_native(width: i64, height: i64, resolution: i64) -> Py
     ))
 }
 #[pyfunction]
-fn validate_prompt_media_native(
+pub(crate) fn validate_prompt_media_native(
     profile: &Bound<'_, PyAny>,
     images: usize,
     videos: &Bound<'_, PyAny>,

@@ -1,5 +1,11 @@
 """Rust boundary contracts for encoder plans and profile policy."""
 
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import textwrap
 import unittest
 
 from remoteworker import _native
@@ -100,3 +106,60 @@ class NativeEncoderContracts(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 _native.decode_generated_prompt_native(data)
         self.assertEqual("hello", _native.decode_generated_prompt_native(b" hello\n"))
+
+
+class ComfyAliasedPackageContracts(unittest.TestCase):
+    def test_prompt_execution_uses_relative_native_binding(self):
+        source = Path(__file__).resolve().parents[1]
+        script = textwrap.dedent(
+            """
+            import importlib
+            import importlib.util
+            import sys
+            import types
+
+            assert importlib.util.find_spec("remoteworker") is None
+            package = types.ModuleType("comfy_custom_alias")
+            package.__path__ = [sys.argv[1]]
+            sys.modules[package.__name__] = package
+            service = importlib.import_module("comfy_custom_alias.remoteworker.prompt.service")
+
+            class Api:
+                graph = None
+                def get_prompt_enhancer_profile(self, profile_id):
+                    return service.DEFAULT_PROFILE
+                def require_node(self, name):
+                    return {}
+                def submit(self, graph):
+                    self.graph = graph
+                    return "prompt-alias"
+                def wait_for_history(self, prompt_id):
+                    return {prompt_id: {"status": {"status_str": "success"}, "outputs": {
+                        "save": {"text": ["remote-conditioning/request-alias/prompt.txt"]}
+                    }}}
+                def download_artifact(self, path):
+                    return b"aliased prompt"
+
+            api = Api()
+            try:
+                service.execute(profile_id="example", prompt="scene", request_id="request-alias", api=api, images=[object()] * 9)
+            except ValueError as error:
+                assert "media exceeds the request limit" in str(error), error
+            else:
+                raise AssertionError("Rust media admission was not enforced")
+            assert api.graph is None
+            assert service.execute(profile_id="example", prompt="scene", request_id="request-alias", api=api) == "aliased prompt"
+            assert "remoteworker" not in sys.modules
+            assert importlib.util.find_spec("remoteworker") is None
+            """
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, "-I", "-c", script, str(source)],
+                cwd=directory,
+                env={**os.environ, "REMOTEWORKER_CONFIG": ""},
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
