@@ -122,6 +122,7 @@ class ComfyHost:
         while not self.policy.stopping:
             executor = _native.host_worker_tick(self, executor, sys.modules[__name__], PromptQueue)
 
+    # shortcut: 진행 중 urllib 호출은 설정 timeout까지 협력 취소 대기, 더 짧은 종료 SLA 도입 시 중단 가능한 transport 검토.
     def shutdown(self):
         with self._shutdown_guard:
             from ..preparation.integration import coordinator
