@@ -233,23 +233,22 @@ if comfy_io is not None:
             return comfy_io.Schema(
                 node_id="RemoteQwenImage21",
                 hidden=[comfy_io.Hidden.unique_id],
-                display_name="Qwen 2.1 원격 인코더",
+                display_name="Remote Qwen 2.1",
                 category="conditioning/remote",
                 description=(
-                    "이 노드는 선택한 원격 ComfyUI에서 Qwen 텍스트·참조 이미지·VAE 인코딩만 실행합니다. "
-                    "원격 주소를 입력한 뒤 각 모델 목록을 새로고침하고, 참조 이미지를 연결하세요."
+                    "Reference images and instructions → positive, negative and latent."
                 ),
                 inputs=[
                     comfy_io.String.Input(
                         "server_url",
-                        display_name="1. 원격 ComfyUI 주소",
+                        display_name="Server",
                         default=DEFAULT_SERVER_URL,
                         placeholder="http://127.0.0.1:8188",
-                        tooltip="Qwen 인코딩을 실행할 ComfyUI 주소입니다. 주소를 입력한 뒤 아래 모델 목록 새로고침을 누르세요.",
+                        tooltip="Choose a server, then refresh its model lists.",
                     ),
                     comfy_io.Int.Input(
                         "timeout_seconds",
-                        display_name="연결 제한 시간(초)",
+                        display_name="Timeout (s)",
                         default=600,
                         min=5,
                         max=1800,
@@ -257,21 +256,21 @@ if comfy_io is not None:
                     ),
                     comfy_io.Combo.Input(
                         "remote_text_encoder",
-                        display_name="2. 원격 텍스트 인코더 파일명",
+                        display_name="Text encoder",
                         options=[DEFAULT_QWEN_CLIP],
                         default=DEFAULT_QWEN_CLIP,
-                        tooltip="원격 서버에서 로드할 모델 파일명 선택. 로컬 CLIP 출력 연결 불가. 주소 입력 후 목록 새로고침.",
+                        tooltip="Choose a model from the selected server.",
                     ),
                     comfy_io.Combo.Input(
                         "vae_name",
-                        display_name="3. 원격 VAE 파일명",
+                        display_name="VAE",
                         options=[DEFAULT_QWEN_VAE],
                         default=DEFAULT_QWEN_VAE,
-                        tooltip="참조 이미지를 latent로 바꿀 때 원격에서 사용할 VAE입니다. 목록 새로고침 후 선택하세요.",
+                        tooltip="VAE used for reference images.",
                     ),
                     comfy_io.String.Input(
                         "prompt",
-                        display_name="편집 지시 (Positive)",
+                        display_name="Prompt",
                         multiline=True,
                         dynamic_prompts=True,
                         default="",
@@ -279,7 +278,7 @@ if comfy_io is not None:
                     ),
                     comfy_io.String.Input(
                         "negative_prompt",
-                        display_name="제외 지시 (Negative)",
+                        display_name="Negative prompt",
                         multiline=True,
                         dynamic_prompts=True,
                         default="",
@@ -287,36 +286,36 @@ if comfy_io is not None:
                     ),
                     comfy_io.Int.Input(
                         "resolution",
-                        display_name="참조 이미지 처리 해상도",
+                        display_name="Reference resolution",
                         default=1024,
                         min=0,
                         max=4096,
                         step=32,
-                        tooltip="각 참조 이미지를 이 크기 근처로 맞춰 텍스트 인코더와 VAE에 보냅니다. 0은 원본 비율·크기를 유지합니다.",
+                        tooltip="0 preserves the reference dimensions.",
                     ),
                     comfy_io.Boolean.Input(
                         "negative_vision",
-                        display_name="Negative에도 참조 이미지 사용",
+                        display_name="Negative images",
                         default=False,
                         label_on="이미지 사용",
                         label_off="텍스트만",
-                        tooltip="Negative 텍스트는 항상 인코딩됩니다. 참조 이미지를 negative branch에도 넣어야 할 때만 켜세요.",
+                        tooltip="Negative text remains active; enable to include reference images.",
                     ),
                     comfy_io.Combo.Input(
                         "peer_memory_policy",
-                        display_name="원격 메모리 정리 방식",
+                        display_name="Model retention",
                         options=list(PEER_MEMORY_POLICIES),
                         default=DEFAULT_PEER_MEMORY_POLICY,
                         advanced=True,
-                        tooltip="기본값은 인코딩 뒤 원격 GPU 메모리를 정리합니다. 같은 원격 모델을 연속 실행할 때만 유지로 바꾸세요.",
+                        tooltip="Release or retain peer models after encoding.",
                     ),
                     comfy_io.Combo.Input(
                         "cache_policy",
-                        display_name="동일 입력 결과 캐시",
+                        display_name="Result reuse",
                         options=list(CACHE_POLICIES),
                         default=DEFAULT_CACHE_POLICY,
                         advanced=True,
-                        tooltip="기본값은 같은 입력의 원격 인코딩 결과를 재사용합니다. 매번 다시 인코딩해야 할 때만 새로고침을 선택하세요.",
+                        tooltip="Reuse matching inputs or encode again.",
                     ),
                     comfy_io.Autogrow.Input(
                         "images",
@@ -328,7 +327,7 @@ if comfy_io is not None:
                             ],
                             min=0,
                         ),
-                        tooltip="편집에 반영할 이미지입니다. image_1을 연결하면 image_2가 나타나며, 최대 16개까지 추가됩니다.",
+                        tooltip="Connect to reveal the next image; up to 16.",
                     ),
                 ],
                 outputs=[

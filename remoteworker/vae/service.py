@@ -67,7 +67,7 @@ class RemoteVAEDecode:
     REMOTE_PREPARATION = Preparation("decoder", kind="image")
 
     KIND = "image"
-    DESCRIPTION = "Decode on a peer and return IMAGE. Shared mode transfers tensors through temporary shared files; tensor mode uses HTTP (512 MiB limit)."
+    DESCRIPTION = "Return IMAGE through a peer VAE. Both transfer modes return tensors; HTTP limit 512 MiB."
     SEARCH_ALIASES = ["remote decode", "원격 VAE", "영상 디코딩"]
     OUTPUT_TOOLTIPS = (
         "Decoded tensor for preview or downstream saving in either transfer mode.",
@@ -163,7 +163,7 @@ class RemoteVAEDecode:
 class RemoteVAEDecodeAudio(RemoteVAEDecode):
     REMOTE_PREPARATION = Preparation("decoder", kind="audio")
     KIND = "audio"
-    DESCRIPTION = "Decode audio on another ComfyUI server. Preserves the native decoder's waveform and sample rate."
+    DESCRIPTION = "Return AUDIO through a peer VAE; preserve the native sample rate."
     SEARCH_ALIASES = ["remote audio", "원격 오디오", "오디오 디코딩"]
     OUTPUT_TOOLTIPS = (
         "Native waveform and sample rate in either transfer mode.",
@@ -174,7 +174,7 @@ class RemoteVAEDecodeAudio(RemoteVAEDecode):
 
 
 class RemoteVAEWarmup:
-    DESCRIPTION = "Prepare a peer VAE with a tiny dummy decode. Route conditioning through passthrough before the sampler; connect ticket to the remote decoder. No image/audio file generated."
+    DESCRIPTION = "Connect readiness to the remote decoder; pass conditioning through to order preparation."
     SEARCH_ALIASES = ["preload VAE", "VAE 웜업", "VAE 미리 준비"]
     OUTPUT_TOOLTIPS = (
         "Connect to the remote decoder's warmup input.",

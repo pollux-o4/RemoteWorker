@@ -151,6 +151,7 @@ class RemotePromptEnhancer:
 
 class RemotePromptGenerate:
     """peer-only worker: turn a system prompt, raw request, and visual refs into text."""
+    DEV_ONLY = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

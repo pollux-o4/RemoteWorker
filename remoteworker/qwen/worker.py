@@ -13,6 +13,7 @@ from typing import Any
 
 class RemoteQwenImage21Encode:
     """peer worker: emit Qwen 2.1 positive, negative, and matching latent."""
+    DEV_ONLY = True
 
     CATEGORY = "conditioning/remote/internal"
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")

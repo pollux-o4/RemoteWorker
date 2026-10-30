@@ -1,16 +1,17 @@
 {
   "RemoteVAEDecode": {
-    "display_name": "Remote VAE Decode · Image/Video",
+    "display_name": "Remote VAE · Image/Video",
     "inputs": {
       "output_mode": {
-        "name": "Output mode",
+        "name": "Transfer",
         "options": {
-          "shared": "Shared folder · save file",
-          "tensor": "Tensor · downstream processing"
-        }
+          "shared": "Shared folder",
+          "tensor": "HTTP transfer"
+        },
+        "tooltip": "Both return tensors; HTTP limit 512 MiB."
       },
       "request_id": {
-        "name": "Retry job ID"
+        "name": "Retry ID"
       },
       "fps": {
         "name": "Frame rate"
@@ -20,46 +21,78 @@
       },
       "crf": {
         "name": "Quality · CRF"
+      },
+      "server_url": {
+        "name": "Server",
+        "tooltip": "A different ComfyUI server."
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)",
+        "tooltip": "Maximum wait per request."
       }
     },
     "outputs": [
       {
-        "name": "Images · tensor mode"
+        "name": "Images"
       },
       {
-        "name": "File path · shared mode"
+        "name": "Unused",
+        "tooltip": "Compatibility socket; no output."
       }
-    ]
+    ],
+    "description": "Both transfers return images; save with a downstream node."
   },
   "RemoteVAEDecodeAudio": {
-    "display_name": "Remote VAE Decode · Audio",
+    "display_name": "Remote VAE · Audio",
     "inputs": {
       "output_mode": {
-        "name": "Output mode",
+        "name": "Transfer",
         "options": {
-          "shared": "Shared folder · save file",
-          "tensor": "Tensor · downstream processing"
-        }
+          "shared": "Shared folder",
+          "tensor": "HTTP transfer"
+        },
+        "tooltip": "Both return tensors; HTTP limit 512 MiB."
       },
       "request_id": {
-        "name": "Retry job ID"
+        "name": "Retry ID"
+      },
+      "server_url": {
+        "name": "Server",
+        "tooltip": "A different ComfyUI server."
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)",
+        "tooltip": "Maximum wait per request."
       }
     },
     "outputs": [
       {
-        "name": "Audio · tensor mode"
+        "name": "Audio"
       },
       {
-        "name": "File path · shared mode"
+        "name": "Unused",
+        "tooltip": "Compatibility socket; no output."
       }
-    ]
+    ],
+    "description": "Both transfers return audio; save with a downstream node."
   },
   "RemoteVAEWarmup": {
-    "display_name": "Remote VAE Warmup"
+    "display_name": "Remote VAE · Warmup",
+    "description": "Connect the readiness signal to the remote decoder; data passes through.",
+    "inputs": {
+      "server_url": {
+        "name": "Server",
+        "tooltip": "A different ComfyUI server."
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)",
+        "tooltip": "Maximum wait per request."
+      }
+    }
   },
   "RemoteVAECombineMedia": {
-    "display_name": "Combine Shared Video + Audio",
-    "description": "Connect VAE file paths. Validate the final video before cleaning up intermediate files.",
+    "display_name": "Combine Video + Audio",
+    "description": "Combine shared file paths; clean up sources after verification.",
     "inputs": {
       "video_path": {
         "name": "Video file"
@@ -85,5 +118,243 @@
         "name": "File path"
       }
     ]
+  },
+  "SaveConditioning": {
+    "display_name": "Save Conditioning (.cond)"
+  },
+  "SaveRemoteConditioning": {
+    "display_name": "Save Remote Conditioning (.cond)"
+  },
+  "SaveRemoteLatent": {
+    "display_name": "Save Remote Latent (.latent)"
+  },
+  "SaveRemoteText": {
+    "display_name": "Save Text (.txt)"
+  },
+  "LoadConditioning": {
+    "display_name": "Load Conditioning (.cond)"
+  },
+  "RemoteConditioning": {
+    "display_name": "Remote CLIP",
+    "description": "Text or Krea2 image-edit conditioning.",
+    "inputs": {
+      "server_url": {
+        "name": "Server"
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)"
+      },
+      "remote_text_encoder": {
+        "name": "Text encoder"
+      },
+      "clip_type": {
+        "name": "Encoder type"
+      },
+      "device": {
+        "name": "Device"
+      },
+      "peer_memory_policy": {
+        "name": "Model retention"
+      },
+      "cache_policy": {
+        "name": "Result reuse"
+      },
+      "prompt": {
+        "name": "Prompt"
+      },
+      "conditioning_strategy": {
+        "name": "Input mode"
+      },
+      "image_count": {
+        "name": "Image count"
+      },
+      "grounding_px": {
+        "name": "Grounding size"
+      },
+      "system_prompt": {
+        "name": "System prompt"
+      }
+    }
+  },
+  "RemoteMiniMaxH3ReferenceEncode": {
+    "display_name": "Remote H3 · Reference",
+    "description": "H3 reference conditioning and latent.",
+    "inputs": {
+      "server_url": {
+        "name": "Server"
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)"
+      },
+      "clip_name": {
+        "name": "Text encoder"
+      },
+      "clip_type": {
+        "name": "Encoder type"
+      },
+      "device": {
+        "name": "Device"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "audio_vae_name": {
+        "name": "Audio VAE"
+      },
+      "peer_memory_policy": {
+        "name": "Model retention"
+      },
+      "cache_policy": {
+        "name": "Result reuse"
+      },
+      "prompt": {
+        "name": "Prompt"
+      },
+      "width": {
+        "name": "Width"
+      },
+      "height": {
+        "name": "Height"
+      },
+      "length": {
+        "name": "Frames"
+      },
+      "ref_image_size": {
+        "name": "Reference size"
+      }
+    }
+  },
+  "RemoteMiniMaxH3ImageToVideo": {
+    "display_name": "Remote H3 · Image to Video",
+    "description": "H3 first/last-frame conditioning and latent.",
+    "inputs": {
+      "server_url": {
+        "name": "Server"
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)"
+      },
+      "clip_name": {
+        "name": "Text encoder"
+      },
+      "clip_type": {
+        "name": "Encoder type"
+      },
+      "device": {
+        "name": "Device"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "peer_memory_policy": {
+        "name": "Model retention"
+      },
+      "cache_policy": {
+        "name": "Result reuse"
+      },
+      "prompt": {
+        "name": "Prompt"
+      },
+      "width": {
+        "name": "Width"
+      },
+      "height": {
+        "name": "Height"
+      },
+      "length": {
+        "name": "Frames"
+      }
+    }
+  },
+  "RemotePromptEnhancer": {
+    "display_name": "Remote Prompt",
+    "description": "Generate a prompt with the selected profile.",
+    "inputs": {
+      "server_url": {
+        "name": "Server"
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)"
+      },
+      "prompt": {
+        "name": "Prompt"
+      },
+      "profile_id": {
+        "name": "Profile"
+      }
+    }
+  },
+  "RemoteVAESelector": {
+    "display_name": "Remote VAE Name",
+    "description": "Outputs a VAE model name without loading it.",
+    "inputs": {
+      "server_url": {
+        "name": "Server"
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)"
+      },
+      "vae_name": {
+        "name": "VAE"
+      }
+    }
+  },
+  "RemoteQwenImage21": {
+    "display_name": "Remote Qwen 2.1",
+    "description": "Reference images and instructions → positive, negative and latent.",
+    "inputs": {
+      "server_url": {
+        "name": "Server"
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)"
+      },
+      "remote_text_encoder": {
+        "name": "Text encoder"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "peer_memory_policy": {
+        "name": "Model retention"
+      },
+      "cache_policy": {
+        "name": "Result reuse"
+      },
+      "prompt": {
+        "name": "Prompt"
+      },
+      "negative_prompt": {
+        "name": "Negative prompt"
+      },
+      "resolution": {
+        "name": "Reference resolution"
+      },
+      "negative_vision": {
+        "name": "Negative images"
+      }
+    }
+  },
+  "SaveSharedVAELatent": {
+    "display_name": "Save Shared Latent",
+    "description": "Input deleted after confirmed consumption; retain the job ID for retry."
+  },
+  "LoadSharedVAELatent": {
+    "display_name": "Load Shared Latent",
+    "description": "Restore a retained latent by job ID."
+  },
+  "RemoteVAEVideo": {
+    "display_name": "Remote Video Save",
+    "description": "Save MP4; delete the latent after confirmation and retain it on failure.",
+    "inputs": {
+      "server_url": {
+        "name": "Server",
+        "tooltip": "A different ComfyUI server."
+      },
+      "timeout_seconds": {
+        "name": "Timeout (s)",
+        "tooltip": "Maximum wait per request."
+      }
+    }
   }
 }

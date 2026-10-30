@@ -19,7 +19,7 @@ from .service import peer_api
 
 
 class SaveSharedVAELatent:
-    DESCRIPTION = "공유 폴더에 latent를 원자적으로 저장합니다. 영상 저장·경로 확인 성공 후에만 임시 latent를 삭제합니다. 실패한 작업 ID로 재시도할 수 있습니다."
+    DESCRIPTION = "완료 확인 후 입력 삭제 · 실패 시 작업 ID로 재시도"
     CATEGORY = "RemoteWorker/VAE"
     RETURN_TYPES = (LATENT_TYPE, "STRING")
     RETURN_NAMES = ("latent", "request_id")
@@ -40,7 +40,7 @@ class SaveSharedVAELatent:
 
 
 class LoadSharedVAELatent:
-    DESCRIPTION = "실패 후 보존된 작업 ID를 입력해 공유 latent를 다시 사용합니다. 완료 후 삭제된 latent는 읽을 수 없습니다."
+    DESCRIPTION = "남아 있는 작업 ID로 latent 복구"
     CATEGORY = "RemoteWorker/VAE"
     RETURN_TYPES = (LATENT_TYPE, "LATENT")
     RETURN_NAMES = ("latent", "samples")
@@ -63,7 +63,7 @@ class LoadSharedVAELatent:
 class RemoteVAEVideo:
     REMOTE_PREPARATION = Preparation("decoder", kind="image")
 
-    DESCRIPTION = "공유 latent를 처리 서버에서 디코딩하고 MP4(H.264)로 저장합니다. 영상 텐서를 전송하지 않고 경로만 반환합니다. 결과 확인 후 latent 삭제; 실패 시 보존합니다."
+    DESCRIPTION = "MP4 저장 · 완료 확인 후 latent 삭제 · 실패 시 보존"
     CATEGORY = "RemoteWorker/VAE"
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("video_path",)

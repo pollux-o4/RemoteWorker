@@ -1,29 +1,29 @@
 {
   "RemoteVAEDecode": {
-    "display_name": "원격 VAE 디코딩 · 이미지/영상",
+    "display_name": "원격 VAE · 이미지/영상",
     "inputs": {
       "vae_name": {
-        "name": "VAE 모델",
-        "tooltip": "처리 서버의 모델 목록에서 선택. 현재 서버에는 VAE를 적재하지 않음"
+        "name": "VAE",
+        "tooltip": "서버의 모델 목록에서 선택"
       },
       "server_url": {
-        "name": "처리 서버",
-        "tooltip": "VAE를 실행할 다른 ComfyUI 서버 주소"
+        "name": "서버",
+        "tooltip": "이 노드와 다른 ComfyUI 서버"
       },
       "timeout_seconds": {
-        "name": "대기 제한(초)",
-        "tooltip": "개별 원격 요청의 최대 대기 시간"
+        "name": "제한(초)",
+        "tooltip": "개별 요청의 최대 대기 시간"
       },
       "samples": {
         "name": "샘플링 결과",
         "tooltip": "H3의 영상·오디오 결합 latent 입력 가능"
       },
       "memory_policy": {
-        "name": "디코딩 후 메모리",
+        "name": "모델 유지",
         "tooltip": "결과 저장 뒤 처리 서버의 모델 해제 또는 다음 디코딩까지 유지",
         "options": {
-          "release_after_result": "모델 해제",
-          "keep": "모델 유지"
+          "release_after_result": "해제",
+          "keep": "유지"
         }
       },
       "warmup": {
@@ -47,14 +47,15 @@
         "name": "시간 겹침"
       },
       "output_mode": {
-        "name": "전달 방식",
+        "name": "전송",
         "options": {
-          "shared": "공유 폴더 경유",
+          "shared": "공유 폴더",
           "tensor": "직접 전송"
-        }
+        },
+        "tooltip": "두 방식 모두 텐서 반환 · 직접 전송 512 MiB 한도"
       },
       "request_id": {
-        "name": "재시도 작업 ID"
+        "name": "재시도 ID"
       },
       "fps": {
         "name": "프레임 속도"
@@ -66,41 +67,42 @@
         "name": "영상 품질 · CRF"
       }
     },
-    "description": "원격 디코딩 후 텐서 반환. 공유 폴더는 임시 파일 경유, 직접 전송은 HTTP 경유·512 MiB 한도. 미리보기·최종 저장은 후속 노드에서 처리",
+    "description": "두 전송 방식 모두 이미지 출력 · 저장은 후속 노드",
     "outputs": [
       {
         "name": "이미지"
       },
       {
-        "name": "파일 경로 · 비활성"
+        "name": "미사용",
+        "tooltip": "호환용 소켓 · 실행 결과 없음"
       }
     ]
   },
   "RemoteVAEDecodeAudio": {
-    "display_name": "원격 VAE 디코딩 · 오디오",
+    "display_name": "원격 VAE · 오디오",
     "inputs": {
       "vae_name": {
-        "name": "VAE 모델",
-        "tooltip": "처리 서버의 모델 목록에서 선택. 현재 서버에는 VAE를 적재하지 않음"
+        "name": "VAE",
+        "tooltip": "서버의 모델 목록에서 선택"
       },
       "server_url": {
-        "name": "처리 서버",
-        "tooltip": "VAE를 실행할 다른 ComfyUI 서버 주소"
+        "name": "서버",
+        "tooltip": "이 노드와 다른 ComfyUI 서버"
       },
       "timeout_seconds": {
-        "name": "대기 제한(초)",
-        "tooltip": "개별 원격 요청의 최대 대기 시간"
+        "name": "제한(초)",
+        "tooltip": "개별 요청의 최대 대기 시간"
       },
       "samples": {
         "name": "샘플링 결과",
         "tooltip": "H3의 영상·오디오 결합 latent 입력 가능"
       },
       "memory_policy": {
-        "name": "디코딩 후 메모리",
+        "name": "모델 유지",
         "tooltip": "결과 저장 뒤 처리 서버의 모델 해제 또는 다음 디코딩까지 유지",
         "options": {
-          "release_after_result": "모델 해제",
-          "keep": "모델 유지"
+          "release_after_result": "해제",
+          "keep": "유지"
         }
       },
       "warmup": {
@@ -108,40 +110,42 @@
         "tooltip": "동일한 서버·VAE·대상의 미리 준비 노드 출력 연결. 생략 가능"
       },
       "output_mode": {
-        "name": "전달 방식",
+        "name": "전송",
         "options": {
-          "shared": "공유 폴더 경유",
+          "shared": "공유 폴더",
           "tensor": "직접 전송"
-        }
+        },
+        "tooltip": "두 방식 모두 텐서 반환 · 직접 전송 512 MiB 한도"
       },
       "request_id": {
-        "name": "재시도 작업 ID"
+        "name": "재시도 ID"
       }
     },
-    "description": "원격 디코딩 후 텐서 반환. 공유 폴더는 임시 파일 경유, 직접 전송은 HTTP 경유·512 MiB 한도. 미리보기·최종 저장은 후속 노드에서 처리",
+    "description": "두 전송 방식 모두 오디오 출력 · 저장은 후속 노드",
     "outputs": [
       {
         "name": "오디오"
       },
       {
-        "name": "파일 경로 · 비활성"
+        "name": "미사용",
+        "tooltip": "호환용 소켓 · 실행 결과 없음"
       }
     ]
   },
   "RemoteVAEWarmup": {
-    "display_name": "원격 VAE 미리 준비",
+    "display_name": "원격 VAE · 준비",
     "inputs": {
       "vae_name": {
-        "name": "VAE 모델",
-        "tooltip": "처리 서버의 모델 목록에서 선택. 현재 서버에는 VAE를 적재하지 않음"
+        "name": "VAE",
+        "tooltip": "서버의 모델 목록에서 선택"
       },
       "server_url": {
-        "name": "처리 서버",
-        "tooltip": "VAE를 실행할 다른 ComfyUI 서버 주소"
+        "name": "서버",
+        "tooltip": "이 노드와 다른 ComfyUI 서버"
       },
       "timeout_seconds": {
-        "name": "대기 제한(초)",
-        "tooltip": "개별 원격 요청의 최대 대기 시간"
+        "name": "제한(초)",
+        "tooltip": "개별 요청의 최대 대기 시간"
       },
       "kind": {
         "name": "대상",
@@ -159,7 +163,7 @@
         "tooltip": "인코딩·cleanup 다음의 conditioning 입력. 전달 데이터를 sampler에 연결하면 샘플링 전에 준비 요청 실행"
       }
     },
-    "description": "최소 더미 디코딩으로 VAE 준비. 전달 데이터를 sampler에, 준비 신호를 원격 디코딩에 연결. 이미지·오디오 파일 생성 없음",
+    "description": "준비 신호를 원격 디코더에 연결 · 선행 데이터 그대로 전달",
     "outputs": {
       "0": {
         "name": "수동 준비 신호",
@@ -172,7 +176,7 @@
     }
   },
   "SaveSharedVAELatent": {
-    "display_name": "공유 VAE latent 저장",
+    "display_name": "공유 latent 저장",
     "inputs": {
       "samples": {
         "name": "샘플링 결과"
@@ -188,10 +192,11 @@
       {
         "name": "재시도 작업 ID"
       }
-    ]
+    ],
+    "description": "완료 확인 후 입력 삭제 · 실패 시 작업 ID로 재시도"
   },
   "LoadSharedVAELatent": {
-    "display_name": "공유 VAE latent 읽기",
+    "display_name": "공유 latent 읽기",
     "inputs": {
       "request_id": {
         "name": "재시도 작업 ID"
@@ -204,19 +209,23 @@
       {
         "name": "샘플링 결과"
       }
-    ]
+    ],
+    "description": "남아 있는 작업 ID로 latent 복구"
   },
   "RemoteVAEVideo": {
-    "display_name": "원격 VAE 영상 저장 · 공유 파일",
+    "display_name": "원격 영상 저장",
     "inputs": {
       "vae_name": {
-        "name": "영상 VAE 모델"
+        "name": "VAE",
+        "tooltip": "서버의 모델 목록에서 선택"
       },
       "server_url": {
-        "name": "처리 서버"
+        "name": "서버",
+        "tooltip": "이 노드와 다른 ComfyUI 서버"
       },
       "timeout_seconds": {
-        "name": "대기 제한(초)"
+        "name": "제한(초)",
+        "tooltip": "개별 요청의 최대 대기 시간"
       },
       "fps": {
         "name": "프레임 속도"
@@ -231,13 +240,17 @@
         "name": "타일 디코딩"
       },
       "memory_policy": {
-        "name": "저장 후 메모리"
+        "name": "모델 유지",
+        "options": {
+          "release_after_result": "해제",
+          "keep": "유지"
+        }
       },
       "latent": {
         "name": "공유 latent"
       },
       "request_id": {
-        "name": "재시도 작업 ID"
+        "name": "재시도 ID"
       },
       "warmup": {
         "name": "수동 준비 신호"
@@ -247,11 +260,12 @@
       {
         "name": "최종 영상 경로"
       }
-    ]
+    ],
+    "description": "MP4 저장 · 완료 확인 후 latent 삭제 · 실패 시 보존"
   },
   "RemoteVAECombineMedia": {
-    "display_name": "공유 영상·음성 결합",
-    "description": "VAE의 파일 경로 출력을 연결하세요. 결합된 영상을 확인한 뒤 중간 파일을 정리합니다.",
+    "display_name": "영상·음성 결합",
+    "description": "공유 파일 경로 결합 · 검증 후 중간 파일 정리",
     "inputs": {
       "video_path": {
         "name": "영상 파일"
@@ -277,5 +291,221 @@
         "name": "파일 경로"
       }
     ]
+  },
+  "SaveConditioning": {
+    "display_name": "조건 저장 (.cond)"
+  },
+  "SaveRemoteConditioning": {
+    "display_name": "원격 조건 저장 (.cond)"
+  },
+  "SaveRemoteLatent": {
+    "display_name": "latent 저장 (.latent)"
+  },
+  "SaveRemoteText": {
+    "display_name": "텍스트 저장 (.txt)"
+  },
+  "LoadConditioning": {
+    "display_name": "조건 읽기 (.cond)"
+  },
+  "RemoteConditioning": {
+    "display_name": "원격 CLIP",
+    "description": "텍스트 또는 Krea2 이미지 편집용 conditioning",
+    "inputs": {
+      "server_url": {
+        "name": "서버"
+      },
+      "timeout_seconds": {
+        "name": "제한(초)"
+      },
+      "remote_text_encoder": {
+        "name": "텍스트 인코더"
+      },
+      "clip_type": {
+        "name": "인코더 종류"
+      },
+      "device": {
+        "name": "장치"
+      },
+      "peer_memory_policy": {
+        "name": "모델 유지"
+      },
+      "cache_policy": {
+        "name": "결과 재사용"
+      },
+      "prompt": {
+        "name": "프롬프트"
+      },
+      "conditioning_strategy": {
+        "name": "입력 방식"
+      },
+      "image_count": {
+        "name": "이미지 수"
+      },
+      "grounding_px": {
+        "name": "참조 크기"
+      },
+      "system_prompt": {
+        "name": "시스템 지시"
+      }
+    }
+  },
+  "RemoteMiniMaxH3ReferenceEncode": {
+    "display_name": "원격 H3 · 참조",
+    "description": "H3 참조 인코딩 · conditioning·latent 출력",
+    "inputs": {
+      "server_url": {
+        "name": "서버"
+      },
+      "timeout_seconds": {
+        "name": "제한(초)"
+      },
+      "clip_name": {
+        "name": "텍스트 인코더"
+      },
+      "clip_type": {
+        "name": "인코더 종류"
+      },
+      "device": {
+        "name": "장치"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "audio_vae_name": {
+        "name": "오디오 VAE"
+      },
+      "peer_memory_policy": {
+        "name": "모델 유지"
+      },
+      "cache_policy": {
+        "name": "결과 재사용"
+      },
+      "prompt": {
+        "name": "프롬프트"
+      },
+      "width": {
+        "name": "너비"
+      },
+      "height": {
+        "name": "높이"
+      },
+      "length": {
+        "name": "프레임"
+      },
+      "ref_image_size": {
+        "name": "참조 크기"
+      }
+    }
+  },
+  "RemoteMiniMaxH3ImageToVideo": {
+    "display_name": "원격 H3 · 이미지→영상",
+    "description": "H3 시작·끝 프레임 인코딩 · conditioning·latent 출력",
+    "inputs": {
+      "server_url": {
+        "name": "서버"
+      },
+      "timeout_seconds": {
+        "name": "제한(초)"
+      },
+      "clip_name": {
+        "name": "텍스트 인코더"
+      },
+      "clip_type": {
+        "name": "인코더 종류"
+      },
+      "device": {
+        "name": "장치"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "peer_memory_policy": {
+        "name": "모델 유지"
+      },
+      "cache_policy": {
+        "name": "결과 재사용"
+      },
+      "prompt": {
+        "name": "프롬프트"
+      },
+      "width": {
+        "name": "너비"
+      },
+      "height": {
+        "name": "높이"
+      },
+      "length": {
+        "name": "프레임"
+      }
+    }
+  },
+  "RemotePromptEnhancer": {
+    "display_name": "원격 프롬프트",
+    "description": "선택한 프로필로 프롬프트 생성",
+    "inputs": {
+      "server_url": {
+        "name": "서버"
+      },
+      "timeout_seconds": {
+        "name": "제한(초)"
+      },
+      "prompt": {
+        "name": "프롬프트"
+      },
+      "profile_id": {
+        "name": "프로필"
+      }
+    }
+  },
+  "RemoteVAESelector": {
+    "display_name": "원격 VAE 선택",
+    "description": "VAE 모델명 출력 · 모델 적재 없음",
+    "inputs": {
+      "server_url": {
+        "name": "서버"
+      },
+      "timeout_seconds": {
+        "name": "제한(초)"
+      },
+      "vae_name": {
+        "name": "VAE"
+      }
+    }
+  },
+  "RemoteQwenImage21": {
+    "display_name": "원격 Qwen 2.1",
+    "description": "참조 이미지·지시 → Positive·Negative·latent",
+    "inputs": {
+      "server_url": {
+        "name": "서버"
+      },
+      "timeout_seconds": {
+        "name": "제한(초)"
+      },
+      "remote_text_encoder": {
+        "name": "텍스트 인코더"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "peer_memory_policy": {
+        "name": "모델 유지"
+      },
+      "cache_policy": {
+        "name": "결과 재사용"
+      },
+      "prompt": {
+        "name": "프롬프트"
+      },
+      "negative_prompt": {
+        "name": "제외 지시"
+      },
+      "resolution": {
+        "name": "참조 해상도"
+      },
+      "negative_vision": {
+        "name": "Negative 이미지"
+      }
+    }
   }
 }

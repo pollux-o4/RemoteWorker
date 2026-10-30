@@ -6,7 +6,7 @@ from .. import _native
 
 class RemoteVAECombineMedia:
     CATEGORY = "RemoteWorker/VAE"
-    DESCRIPTION = "공유 모드의 파일 경로 출력을 연결하세요. 영상 재인코딩 없이 음성을 결합하고 검증 후 중간 파일을 정리합니다. 텐서 모드는 기존 비디오 생성 노드를 사용하세요."
+    DESCRIPTION = "공유 파일 경로 결합 · 검증 후 중간 파일 정리"
     RETURN_TYPES = ("VIDEO", "STRING")
     RETURN_NAMES = ("video", "file_path")
     FUNCTION = "run"
