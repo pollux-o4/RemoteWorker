@@ -4,18 +4,7 @@ import gc
 import time
 
 
-def snapshot():
-    try:
-        with open("/proc/meminfo") as source:
-            values = {
-                line.split(":")[0]: int(line.split()[1]) * 1024 for line in source
-            }
-        return {
-            "available": values["MemAvailable"],
-            "swap_used": values["SwapTotal"] - values["SwapFree"],
-        }
-    except (OSError, KeyError, ValueError):
-        return {}
+from .._native import memory_snapshot as snapshot
 
 
 class PressureRelief:
@@ -25,10 +14,8 @@ class PressureRelief:
 
     def tick(self):
         state = snapshot()
-        if (
-            state.get("available", 2**64) < 2 * 1024**3
-            and time.monotonic() - self.last > 30
-        ):
+        from .._native import memory_pressure
+        if memory_pressure(state.get("available"), time.monotonic(), self.last):
             self.clear()
             gc.collect()
             self.last = time.monotonic()

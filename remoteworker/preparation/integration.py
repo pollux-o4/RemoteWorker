@@ -2,6 +2,10 @@
 
 from functools import wraps
 from contextlib import contextmanager
+import sys
+from .. import _native, pipeline
+from ..core.transport import _raise_if_caller_interrupted
+from .plan import head
 import inspect
 import os
 import time
@@ -25,24 +29,9 @@ def current_prompt():
     return get_progress_state().prompt_id
 
 
-@contextmanager
 def foreground_gate(url, decode=False, check_wait=None):
-    from ..core.transport import _raise_if_caller_interrupted
-
-    check_wait = check_wait or _raise_if_caller_interrupted
-    while True:
-        check_wait()
-        if decode and coordinator:
-            coordinator.ensure_next_before_decode(url)
-        with gate(url).enter(check_wait=check_wait):
-            if (
-                decode
-                and coordinator
-                and coordinator.next_clip_missing(current_prompt(), url)
-            ):
-                continue
-            yield
-            return
+    return _native.prep_foreground_lease(sys.modules[__name__], url, decode,
+                                        check_wait or _raise_if_caller_interrupted)
 
 
 def managed(function, kind=None):
@@ -54,45 +43,8 @@ def managed(function, kind=None):
     def run(*args, **kwargs):
         values = call_signature.bind(*args, **kwargs)
         values.apply_defaults()
-        url = values.arguments.get("server_url")
-        if not url or is_speculative():
-            return function(*args, **kwargs)
-        def check_prepared():
-            from ..core.transport import _raise_if_caller_interrupted
-            _raise_if_caller_interrupted()
-            if coordinator and coordinator.handoffs and kind == "encoder":
-                from .handoff import signature, unpack
-                key = (current_prompt(), str(values.arguments.get("unique_id")))
-                blob = coordinator.handoffs.take(key, signature(values.arguments))
-                if blob is not None:
-                    coordinator.record("conditioning_consumed", prompt_id=key[0], node_id=key[1], peer=url)
-                    raise PreparedResult(unpack(blob))
-        from .. import pipeline
-        host = pipeline.runtime
-        if kind == "decoder" and host and getattr(host.slots.thread, "job", None):
-            from ..core.transport import _raise_if_caller_interrupted
-            prompt_id = current_prompt()
-            from .plan import head
-            following = head(coordinator.queue()[1]) if coordinator else None
-            def decode():
-                if coordinator:
-                    coordinator.ensure_next_before_decode(url, current_id=prompt_id, following=following)
-                with gate(url).enter(check_wait=_raise_if_caller_interrupted):
-                    return function(*args, **kwargs)
-            return host.remote(decode)
-        try:
-            with foreground_gate(url, kind == "decoder", check_prepared if kind == "encoder" else None):
-                if coordinator and kind == "encoder":
-                    coordinator.encoder_started(current_prompt(), values.arguments.get("unique_id"))
-                started = time.monotonic()
-                scheduler = coordinator.scheduler if coordinator else None
-                result = function(*args, **kwargs)
-                if scheduler:
-                    if kind == "encoder":
-                        scheduler.observe_encoder(time.monotonic() - started)
-                return result
-        except PreparedResult as ready:
-            return ready.result
+        return _native.prep_managed_call(sys.modules[__name__], function, args, kwargs,
+                                         values.arguments, kind)
 
     run._remote_preparation = True
     return run

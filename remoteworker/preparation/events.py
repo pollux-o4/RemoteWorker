@@ -26,27 +26,10 @@ class EventBridge:
         server.send_sync = send
 
     def observe(self, event, data):
-        if event == "progress_state" and isinstance(data, dict):
-            from comfy_execution.progress import get_progress_state
+        from .._native import prep_observe_event
+        return prep_observe_event(self.coordinator, event, data, _progress_registry)
 
-            registry = get_progress_state()
-            job = data.get("prompt_id")
-            if registry.prompt_id == job:
-                for key, value in data.get("nodes", {}).items():
-                    if value.get("state") != "running":
-                        continue
-                    node = registry.dynprompt.get_node(key)
-                    if "Sampler" in node.get("class_type", ""):
-                        self.coordinator.scheduler.sampling.update(
-                            job, key, value.get("value", 0), value.get("max", 1)
-                        )
-            self.coordinator.wake.set()
-        elif event in {
-            "status",
-            "executing",
-            "execution_start",
-            "execution_success",
-            "execution_error",
-            "execution_interrupted",
-        }:
-            self.coordinator.wake.set()
+
+def _progress_registry():
+    from comfy_execution.progress import get_progress_state
+    return get_progress_state()

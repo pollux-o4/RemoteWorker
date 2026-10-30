@@ -1,19 +1,7 @@
-"""One local compute owner, with scoped suspension during remote IO."""
+"""Host locks and context capture around Rust-owned pipeline state."""
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from threading import Event, Lock, local
-
-
-@dataclass
-class Job:
-    prompt_id: str
-    executor: object
-    cancel: Event = field(default_factory=Event)
-    phase: str = "local"
-    extra: dict = field(default_factory=dict)
-    outputs: list = field(default_factory=list)
-    previews: dict = field(default_factory=dict)
-    preview_nodes: list = field(default_factory=list)
+from threading import Lock, local
+from .._native import Job, SlotState
 
 
 class Slots:
@@ -21,26 +9,29 @@ class Slots:
 
     def __init__(self, capture, restore):
         self.capture, self.restore = capture, restore
-        self.lock = Lock()
-        self.guard = Lock()
-        self.thread = local()
-        self.jobs = {}
-        self.active = None
-        self.ready = 0
+        self.lock, self.guard, self.thread = Lock(), Lock(), local()
+        self.state = SlotState()
+
+    @property
+    def jobs(self): return self.state.jobs
+
+    @property
+    def active(self): return self.state.active
+
+    @property
+    def ready(self): return self.state.ready
 
     @contextmanager
     def job(self, prompt_id, executor):
         job = Job(prompt_id, executor)
         self.thread.job = job
         with self.guard:
-            self.jobs[prompt_id] = job
-            self.active = prompt_id
+            self.state.start(job)
         try:
             yield job
         finally:
             with self.guard:
-                self.jobs.pop(prompt_id, None)
-                self.active = None
+                self.state.finish(job)
             self.thread.job = None
 
     def remote(self, operation, completed=None):
@@ -49,8 +40,7 @@ class Slots:
             return operation()
         saved = self.capture(job)
         with self.guard:
-            job.phase = "remote"
-            self.active = None
+            self.state.suspend(job)
         self.lock.release()
         try:
             result = operation()
@@ -59,17 +49,12 @@ class Slots:
             return result
         finally:
             with self.guard:
-                self.ready += 1
-                job.phase = "ready"
+                self.state.completed(job)
             self.lock.acquire()
-            with self.guard:
-                self.ready -= 1
             self.restore(job, saved)
             with self.guard:
-                job.phase = "local"
-                self.active = job.prompt_id
+                self.state.resume(job)
 
     def status(self):
         with self.guard:
-            return {"enabled": True, "capacity": self.capacity, "local_prompt_id": self.active,
-                    "jobs": [{"prompt_id": j.prompt_id, "phase": j.phase, "preview_nodes": list(j.preview_nodes)} for j in self.jobs.values()]}
+            return self.state.status()

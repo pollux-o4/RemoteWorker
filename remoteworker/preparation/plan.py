@@ -1,105 +1,16 @@
-"""Pure queue planning; never evaluate arbitrary graph nodes speculatively."""
-
-import hashlib
-import json
-
+"""Python registry adapter for the Rust queue planner."""
+from .. import _native
+from .._native import literal_inputs, fingerprint, is_sampling, reachable, head, job_graph, graph_contract
 from .capabilities import encoder_types, decoder_types
 
 
-def literal_inputs(node):
-    values = node.get("inputs", {})
-    # Links can contain images, runtime text, model overrides or other side effects.
-    if any(isinstance(v, (list, dict)) for v in values.values()):
-        return None
-    if values.get("cache_policy", "reuse") == "always_refresh":
-        return None
-    return dict(values)
-
-
-def fingerprint(node):
-    values = {
-        k: v for k, v in node.get("inputs", {}).items() if k not in ("timeout_seconds",)
-    }
-    return hashlib.sha256(
-        json.dumps([node["class_type"], values], sort_keys=True).encode()
-    ).hexdigest()
-
-
-def is_sampling(graph, node_id):
-    name = graph.get(str(node_id), {}).get("class_type", "")
-    return "Sampler" in name or name == "SamplerCustom"
-
-
 def next_encoders(graph):
-    encoders = encoder_types()
-    return [
-        (key, node, literal_inputs(node))
-        for key, node in graph.items()
-        if node.get("class_type") in encoders
-    ]
+    return _native.next_encoders(graph, encoder_types())
 
 
 def first_decoder(graph):
-    # Warm only the first decoder: loading both H3 VAEs can evict the first on 8 GB.
-    decoders = decoder_types()
-    candidates = [
-        (key, node) for key, node in graph.items() if node.get("class_type") in decoders
-    ]
-    candidates.sort(key=lambda item: decoders[item[1]["class_type"]] != "image")
-    for key, node in candidates:
-        values = node.get("inputs", {})
-        if values.get("warmup") is not None:  # Explicit manual ordering wins.
-            continue
-        if all(
-            isinstance(values.get(k), str) and values[k]
-            for k in ("vae_name", "server_url")
-        ):
-            return (
-                key,
-                values["server_url"],
-                values["vae_name"],
-                decoders[node["class_type"]],
-            )
-    return None
-
-
-def reachable(graph, outputs=None):
-    if outputs is None:
-        return graph
-    visited = set()
-    todo = list(outputs)
-    while todo:
-        key = str(todo.pop())
-        if key in visited or key not in graph:
-            continue
-        visited.add(key)
-        for value in graph[key].get("inputs", {}).values():
-            if isinstance(value, list) and len(value) == 2 and str(value[0]) in graph:
-                todo.append(value[0])
-    return {key: node for key, node in graph.items() if key in visited}
-
-
-def head(pending):
-    return min(pending, key=lambda item: item[0]) if pending else None
-
-
-def job_graph(job):
-    return reachable(job[2], job[4] if len(job) > 4 else None)
+    return _native.first_decoder(graph, decoder_types())
 
 
 def pending_encoders(pending, completed):
-    """The next authoritative head's reachable, unfinished encoder attempts."""
-    following = head(pending)
-    if following is None:
-        return
-    graph = job_graph(following)
-    for node_id, node, values in next_encoders(graph):
-        token = (following[1], node_id, fingerprint(node))
-        if token not in completed:
-            yield following, graph, node_id, node, values, token
-
-
-def graph_contract(graph):
-    """Execution inputs only; native is_changed annotations do not change queued work."""
-    return {key: {"class_type": node.get("class_type"), "inputs": node.get("inputs", {})}
-            for key, node in graph.items()}
+    return iter(_native.pending_encoders(pending, completed, encoder_types()))

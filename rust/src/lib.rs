@@ -2,6 +2,9 @@
 mod artifacts;
 mod boundary;
 mod cache;
+mod execution;
+mod graph;
+mod preparation;
 mod protocol;
 mod request;
 
@@ -28,6 +31,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     protocol::register(m)?;
     artifacts::register(m)?;
     cache::register(m)?;
+    preparation::register(m)?;
+    graph::register(m)?;
+    execution::register(m)?;
     boundary::register(m)?;
     request::register(m)?;
     m.add("ARCHITECTURE", "modular-monolith")?;

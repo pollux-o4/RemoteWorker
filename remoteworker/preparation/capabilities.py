@@ -1,30 +1,6 @@
-"""Node-owned preparation contracts, discovered from registered node classes."""
-
-from dataclasses import dataclass
+"""Native preparation contracts, discovered from Comfy's registered classes."""
 from functools import lru_cache
-from typing import Callable, Literal
-
-
-@dataclass(frozen=True)
-class Preparation:
-    role: Literal["encoder", "decoder"]
-    kind: str | None = None
-    executor: type | None = None
-    inputs: Callable[[dict], dict] = dict
-
-    def __post_init__(self):
-        if self.role not in {"encoder", "decoder"}:
-            raise ValueError("Unknown preparation role")
-        if self.role == "decoder" and self.kind not in {"image", "audio"}:
-            raise ValueError("Decoder preparation requires a media kind")
-
-
-def discover(classes):
-    return {
-        name: (cls, contract)
-        for name, cls in classes.items()
-        if isinstance(contract := getattr(cls, "REMOTE_PREPARATION", None), Preparation)
-    }
+from .._native import Preparation, discover_preparation as discover, preparation_encoders, preparation_decoders
 
 
 @lru_cache(maxsize=1)
@@ -35,8 +11,8 @@ def registered():
 
 
 def encoder_types():
-    return {name for name, (_, spec) in registered().items() if spec.role == "encoder"}
+    return preparation_encoders(registered())
 
 
 def decoder_types():
-    return {name: spec.kind for name, (_, spec) in registered().items() if spec.role == "decoder"}
+    return preparation_decoders(registered())
