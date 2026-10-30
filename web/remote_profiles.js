@@ -81,14 +81,17 @@ export function applyPromptProfiles(node, payload) {
 
 export function applyPromptProfilesToVueDefs(definitions, payload) {
     const profiles = normalizePromptProfiles(payload);
-    const ids = [...profiles.map((profile) => profile.id), PROFILE_MANAGER_OPTION];
+    const ids = profiles.map((profile) => profile.id);
     for (const definition of definitions || []) {
         if (definition?.name !== "RemotePromptEnhancer") continue;
         const profileSpec = definition.input?.required?.profile_id;
         if (!Array.isArray(profileSpec) || !Array.isArray(profileSpec[0])) continue;
-        profileSpec[0].splice(0, profileSpec[0].length, ...ids);
+        const values = [...ids];
+        const savedDefault = profileSpec[1]?.default;
+        if (typeof savedDefault === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(savedDefault) && !values.includes(savedDefault)) values.unshift(savedDefault);
+        profileSpec[0].splice(0, profileSpec[0].length, ...values);
         if (profileSpec[1] && typeof profileSpec[1] === "object") {
-            profileSpec[1].tooltip = "프로필 선택 · 상세에서 관리";
+            profileSpec[1].tooltip = profiles.length ? "프로필 선택" : "등록된 프로필 없음";
         }
     }
     return profiles.length;

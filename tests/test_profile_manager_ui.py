@@ -202,3 +202,76 @@ class ProfileManagerUi(unittest.TestCase):
             await opening;
             assert.equal(node.applied,undefined);
         """)
+
+    def test_vue_choices_never_offer_an_action_and_keep_a_saved_default(self):
+        self.run_contract(r"""
+            import {applyPromptProfilesToVueDefs, PROFILE_MANAGER_OPTION}
+                from "./custom/web/remote_profiles.js";
+            const definitions=[{name:"RemotePromptEnhancer",input:{required:{
+                profile_id:[["legacy-placeholder",PROFILE_MANAGER_OPTION],{default:"saved-profile"}]
+            }}}];
+            applyPromptProfilesToVueDefs(definitions,{profiles:[profile("alpha")]});
+            const [values,metadata]=definitions[0].input.required.profile_id;
+            assert.deepEqual(values,["saved-profile","alpha"]);
+            assert.equal(metadata.default,"saved-profile");
+            assert.equal(metadata.tooltip,"프로필 선택");
+            assert.ok(!values.includes(PROFILE_MANAGER_OPTION));
+            assert.ok(!values.includes("Manage profiles..."));
+            applyPromptProfilesToVueDefs(definitions,{profiles:[]});
+            assert.deepEqual(values,["saved-profile"]);
+        """)
+
+    def test_add_waits_for_model_choices_and_retry_preserves_existing_edit(self):
+        self.run_contract(r"""
+            for (const malformed of [false,true]) {
+                let recovered=false,writes=0;
+                api.fetchApi=async path=>{
+                    if(path.endsWith("/manage")){writes++;throw new Error("unexpected write");}
+                    if(path.includes("clip-loader")){
+                        if(recovered)return response(clips);
+                        if(malformed)return response({clip_name:[],clip_type:[],device:[]});
+                        throw new Error("model lookup unavailable");
+                    }
+                    return response({profiles:[profile("alpha")]});
+                };
+                const dialog=await openPromptProfileManager(node,adapter);
+                assert.equal(role(dialog,"add").disabled,true);
+                assert.equal(role(dialog,"edit").disabled,false);
+                assert.match(role(dialog,"status").textContent,/모델 목록 조회 실패/);
+                role(dialog,"add").click();
+                assert.equal(role(dialog,"id").readOnly,true);
+                role(dialog,"edit").click();
+                assert.equal(role(dialog,"clip-name").value,"encoder.safetensors");
+                role(dialog,"description-input").value="retained during model retry";
+                recovered=true;role(dialog,"retry").click();await settle();
+                assert.equal(role(dialog,"description-input").value,"retained during model retry");
+                assert.equal(role(dialog,"add").disabled,false);
+                role(dialog,"add").click();
+                assert.equal(role(dialog,"id").readOnly,false);
+                assert.equal(role(dialog,"clip-name").value,"encoder.safetensors");
+                assert.equal(writes,0);
+                role(dialog,"close").click();
+                node._remotePromptProfileDrafts.clear();
+            }
+        """)
+
+    def test_unconfirmed_write_reentry_still_offers_model_lookup_for_add(self):
+        self.run_contract(r"""
+            let writes=0;
+            api.fetchApi=async path=>{
+                if(path.endsWith("/manage")){writes++;throw new Error("not saved");}
+                return response(path.includes("clip-loader")?clips:{profiles:[profile("alpha")]});
+            };
+            const dialog=await openPromptProfileManager(node,adapter);
+            role(dialog,"edit").click();role(dialog,"description-input").value="retained edit";
+            role(dialog,"save").click();await settle();role(dialog,"close").click();
+            const reopened=await openPromptProfileManager(node,adapter);
+            assert.equal(role(reopened,"description-input").value,"retained edit");
+            assert.equal(role(reopened,"add").disabled,true);
+            assert.equal(role(reopened,"retry").hidden,false);
+            assert.equal(role(reopened,"retry").textContent,"모델 조회");
+            role(reopened,"retry").click();await settle();
+            assert.equal(role(reopened,"add").disabled,false);
+            assert.equal(writes,1);
+            role(reopened,"close").click();
+        """)

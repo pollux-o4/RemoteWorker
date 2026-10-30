@@ -239,7 +239,7 @@ export async function openPromptProfileManager(node, adapter, options = {}) {
         const profile = selected();
         const writing = mode === "edit" || mode === "new";
         picker.disabled = busy || !loaded || Boolean(pending) || mode === "delete";
-        add.disabled = busy || Boolean(pending) || !loaded || stale || (!clips && !profiles.length);
+        add.disabled = busy || Boolean(pending) || !loaded || stale || !clips;
         edit.disabled = remove.disabled = busy || Boolean(pending) || !profile || stale;
         summary.hidden = !loaded || writing || mode === "delete";
         form.hidden = !writing;
@@ -293,7 +293,8 @@ export async function openPromptProfileManager(node, adapter, options = {}) {
             profiles = fresh; loaded = true; pending = null; populatePicker();
             if (drafts.has(activeKey)) { mode = activeKey === newKey ? "new" : "edit"; fill(drafts.get(activeKey)); }
             notify("저장 확인 안 됨 · 입력 유지", new Error("현재 목록을 확인했습니다. 입력을 검토한 뒤 다시 저장하세요."));
-            retry.hidden = true;
+            retry.hidden = Boolean(clips);
+            retry.textContent = "모델 조회";
         } catch (error) {
             if (!dialog.open) return;
             if (!serverMatches()) { markStale(); return; }

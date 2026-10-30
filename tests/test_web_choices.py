@@ -299,8 +299,8 @@ assert.equal(select('', ['first']), '');
         )
 
         options, metadata = json.loads(completed.stdout)
-        self.assertEqual(["example-small", "example", "프로필 관리…"], options)
-        self.assertEqual("프로필 선택 · 상세에서 관리", metadata["tooltip"])
+        self.assertEqual(["example-small", "example"], options)
+        self.assertEqual("프로필 선택", metadata["tooltip"])
 
     @unittest.skipUnless(
         shutil.which("node"),
@@ -329,7 +329,7 @@ assert.equal(select('', ['first']), '');
         )
 
         self.assertEqual(
-            ["example-small", "example", "프로필 관리…"],
+            ["example-small", "example"],
             json.loads(completed.stdout),
         )
 
