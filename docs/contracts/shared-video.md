@@ -52,15 +52,15 @@ flowchart TB
 
 | 소유 코드 | 진입점·책임 |
 | --- | --- |
-| `vae/delivery.py` | `check_shared`, `receive_probe` · 양방향 파일 접근 검사 |
-| `vae/shared_video.py` | `execute_shared` · peer workflow·결과 확인; 기존 공유 노드 어댑터 공용 |
-| `vae/shared_store.py` | `save_latent`, `load_latent`, `publish`, `acknowledge` · 공유 파일·작업 잠금·완료 상태 |
-| `vae/worker.py` | `SharedVAEVideoWorker`, `encode_video` · 네이티브 VAE·영상 인코딩 |
-| `vae/schema.py` | `video_fields`, `video_options`, `decode_fields`, `DECODE_DEFAULTS` · caller/worker 설정 정본 |
-| `vae/codec.py` | `cpu_value`, `restore` · CPU 텐서·메타데이터·NestedTensor 직렬화 |
-| `core/execution.py` | `completed_prompt` · 제출·대기·결과 소비 중 대상 취소 |
-| `core/artifacts.py` | `successful_outputs` · peer 성공 상태·오류 해석 |
-| `preparation/plan.py`, `integration.py` | `RemoteVAEVideo` 디코더 등록·VAE 준비·`latent` 선실행 제외 |
+| `rust/src/vae/policy.rs` | 공유 probe·설정 검증·warmup·worker workflow |
+| `rust/src/vae/execution.rs` | preflight·제출·완료 확인·ack·소비·취소 |
+| `rust/src/vae/store.rs` | latent·receipt·잠금·원자 발행·검증 후 삭제 |
+| `rust/src/vae/secure_fs.rs` | no-follow dirfd·writer/read FD 고정·inode 검사·상대 rename/unlink |
+| `rust/src/vae/codec.rs` | CPU·NestedTensor envelope·형식·예산 |
+| `rust/src/request.rs`·`artifacts.rs` | 요청 수명주기·대상 취소·peer 결과 해석 |
+| `remoteworker/vae/worker.py` | Comfy VAE·PyAV encoder adapter |
+| `remoteworker/vae/schema.py` | 노드 입력 표시·Rust 설정 정본 연결 |
+| `remoteworker/vae/shared_video.py`·`shared_tensor.py`·`shared_store.py` | Comfy 노드·Python 호출 adapter |
 
 ## 발행·완료 확인
 
@@ -116,3 +116,5 @@ flowchart TB
 | `tools/e2e_vae.py --mode unified --kind audio` | 통합 오디오 텐서 반환·네이티브 결과와 bit-exact 비교 |
 | `tools/e2e_vae.py --mode shared --large` | zero H3 latent·512×512·175프레임·525 MiB·오디오·재조회·실패 복구·입력 삭제 |
 | `tools/e2e_vae.py --mode tensor --kind audio` | 네이티브 AUDIO와 원격 반환의 bit-exact 비교 |
+
+- 공유 디스크 권한: 호출·peer 동일 Unix UID · 요청 디렉터리 0700·파일 0600 · 다른 UID 간 전송은 HTTP tensor 모드

@@ -1,89 +1,53 @@
-# C3 · 컴포넌트
+# C3 · RemoteWorker 컴포넌트
 
 ```mermaid
 flowchart TB
-    subgraph Browser[브라우저 확장]
-        direction TB
-        Entry[확장 lifecycle]
-        Choices[모델 조회·선택]
-        Profiles[프로필 상태·편집기]
-        Sockets[동적 소켓·워크플로 마이그레이션]
-        Entry --> Choices
-        Entry --> Profiles
-        Entry --> Sockets
-        Profiles --> Sockets
+    UI["브라우저 · 노드 조작·소켓·상태 표시"]
+    Adapter["Python adapter · Comfy 등록·HTTP·PyTorch·native GPU 호출"]
+    subgraph Native["Rust 모듈러 모놀리스 · 단일 _native 확장"]
+        Boundary["Protocol / Boundary · 입력·peer·artifact 계약"]
+        Encoders["Encoders · conditioning·Qwen·MiniMax·prompt"]
+        Profiles["Profiles · 스키마·조회·변경 규칙"]
+        Execution["Execution · 큐 계획·상태 전이·취소·gate"]
+        Cache["Cache · byte LRU·일회 handoff·weak 모델 참조"]
+        VAE["VAE · 전송·웜업·공유 발행·완료 확인·결합"]
+        Encoders --> Boundary
+        Encoders --> Cache
+        Execution --> Cache
+        VAE --> Boundary
+        Encoders --> Profiles
     end
-    subgraph Caller[호출 측 Python 프로세스]
-        direction TB
-        Adapter[모델 어댑터·workflow builder]
-        Execution[요청 수명주기]
-        Transport[Comfy HTTP 어댑터]
-        Protocol[검증·artifact 계약]
-        Cache[용량 제한 byte 결과 캐시]
-        Defaults[외부 기본값 로더]
-        Adapter --> Execution --> Transport
-        Adapter --> Protocol
-        Adapter --> Cache
-        Adapter --> Defaults
-        Execution --> Protocol
-        Discovery[동일 origin 조회·프로필 프록시] --> Transport
-    end
-    subgraph Peer[peer Python 프로세스]
-        direction TB
-        Host[Comfy 그래프 실행기]
-        Workers[인코딩·생성·VAE worker]
-        IO[conditioning·latent·텍스트·VAE 결과 저장기]
-        Registry[프로필 저장소·CRUD 라우트]
-        Cleanup[요청 입력·VAE 전송 결과 정리 라우트]
-        Host --> Workers --> IO
-        PeerDefaults[로컬 기본값 로더]
-        Registry --> PeerDefaults
-    end
-    Choices --> Discovery
-    Profiles --> Discovery
-    Transport -->|Comfy API| Host
-    Transport --> Registry
-    Transport --> Cleanup
-    SharedFacade[공유 영상 노드] --> Execution
-    SharedFacade -->|latent 저장·완료 확인| SharedStore[공유 파일 수명주기]
-    Workers -->|publish·encode_video| SharedStore
+    UI -->|동일 origin| Adapter
+    Adapter --> Native
+    Native -->|IO·텐서 연산 callback| Adapter
+    Adapter --> Peer["peer ComfyUI / 공유 저장소"]
 ```
 
-| 컴포넌트 | 소유 코드 |
+| 책임 | 소유 코드 |
 | --- | --- |
-| 확장 lifecycle | `web/remote_conditioning.js`, `web/remote_qwen_image21.js` |
-| 조회·모델 선택 | `web/remote_choices.js` |
-| 프로필 상태·편집기 | `web/remote_profiles.js`, `web/remote_profile_dialog.js` |
-| 그래프 소켓·마이그레이션 | `web/remote_sockets.js` |
-| MiniMax 미디어·workflow | `remoteworker/minimax/media.py`, `remoteworker/minimax/reference_workflow.py` |
-| 노드·라우트 조립 | `remoteworker/registry.py` |
-| 요청 수명주기·HTTP | `remoteworker/core/execution.py`, `remoteworker/core/transport.py` |
-| 공유 검증·미디어·artifact | `remoteworker/core/protocol.py`, `remoteworker/core/media.py`, `remoteworker/core/artifacts.py` |
-| 캐시 | `remoteworker/core/result_cache.py` |
-| 조회·정리 라우트 | `remoteworker/integration/discovery_routes.py` |
-| 프로필 저장·프록시 | `remoteworker/prompt/profiles.py`, `remoteworker/prompt/transport.py`, `remoteworker/integration/profile_routes.py` |
-| artifact IO | `remoteworker/integration/artifact_io.py` |
-| 원격 VAE·웜업 | `remoteworker/vae/service.py`, `worker.py`, `warmup.py`, `codec.py` |
-| VAE 전송 결과 정리 | `remoteworker/vae/routes.py` |
+| 요청 ID·origin·capability·artifact 격리 | `rust/src/protocol.rs`, `artifacts.rs`, `boundary.rs` |
+| 요청 수명주기·개별 취소·업로드 정리 | `rust/src/request.rs` |
+| 모델별 workflow·미디어·선택값·캐시 키·실행 순서 | `rust/src/workflows.rs`, `encoder_policy.rs`, `encoder_runtime.rs` |
+| 프로필·기본값 스키마 | `rust/src/profiles.rs` |
+| 큐 그래프·admission·준비·handoff·gate·실행 슬롯 | `rust/src/graph.rs`, `preparation.rs`, `execution.rs`, `execution/` |
+| CPU 바이트 캐시 | `rust/src/cache.rs` |
+| VAE codec·공유 저장·receipt·전송·결합 | `rust/src/vae.rs`, `vae/` |
+| Comfy 등록·라우트·GPU API 연결 | `remoteworker/registry.py`, `integration/`, 모델별 Python adapter |
+| 노드·조회·프로필 폼·상태 표시 | `web/` |
 
-## 자동 준비
+## 실행·실패 계약
 
-- [입력 해석·큐 스케줄링·일회 handoff·웜업 코드](../contracts/preparation.md)
-- 노드 소유 준비 계약의 자동 발견·CLIP 우선·잔여 2 step VAE 준비·요청별 취소·일회 전달
+- 호출 측·peer 각각의 ComfyUI 프로세스 내부 native 모듈 로드 · 별도 Rust 서버 없음
+- 검증된 ID·정책·미디어 종류·슬롯 단계의 Rust 타입 소유 · 외부 입력의 런타임 검증 후 구성
+- Python 예외의 FFI 전달 · 실패 시 해당 prompt 취소 · 업로드 성공분의 요청별 정리
+- 공유 파일: no-follow dirfd·고정 writer FD → 파일 fsync → rename → 상위 디렉터리 fsync → receipt 검증 → 입력 삭제
+- native 바이너리 필수 · Python 핵심 로직 대체 구현 없음
+- UI: 기본 상태·행동 표시 · 설명·이력의 상세 펼침
 
-## 공유 파일 영상 경로
+## 도메인 계약
 
-- `vae/shared_store.py`: 요청별 latent·최종 MP4/WAV·receipt·완료 확인 후 입력 삭제
-- `vae/shared_video.py`: 공유 실행·peer workflow·완료 확인·기존 노드 어댑터
-- `vae/delivery.py`: 통합 디코더 모드 분기·양방향 공유 접근 검사
-- `vae/worker.py`: 네이티브 VAE·영상 인코딩
-- `vae/schema.py`: caller/worker 영상·타일 설정 정본
-- C2~C4 상세: [공유 latent → 영상](../contracts/shared-video.md)
-
-- Qwen 모델 선택: peer 파일명 기준 경로 해석·누락 선택 보존 · [C4 계약](04-code.md#qwen-원격-모델-선택)
-
-- 통합 원격 VAE: HTTP/공유 임시 파일의 동일 텐서 출력 · 최종 미리보기·저장 후속 노드 소유 · [공유 전송](../contracts/shared-video.md#통합-디코더--텐서-전달)
-
-- [파이프라인 계약](../contracts/pipeline.md): native worker adapter·로컬 실행 슬롯·원격 대기·MODEL/LoRA 재사용·개별 취소
-
-- 원격 결과의 직접 연결 CPU 미리보기: GPU 재입장 이전 원래 작업 이벤트 발행·후속 저장과 완료 이력의 native 소유 · [파이프라인](../contracts/pipeline.md)
+- [준비·메모리](../contracts/preparation.md)
+- [파이프라인·원래 작업 미리보기](../contracts/pipeline.md)
+- [공유 latent·영상·텐서](../contracts/shared-video.md)
+- [파일 결합·최종화](../contracts/file-finalization.md)
+- [C4 코드 라우팅](04-code.md)

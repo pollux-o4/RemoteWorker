@@ -91,23 +91,17 @@ flowchart TB
 
 | 소스 | 소유 책임 |
 | --- | --- |
-| `preparation/capabilities.py` | `Preparation`·등록 노드 역할 발견·실행 대상·입력 adapter |
-| `preparation/integration.py` | Comfy 등록·wrapper·decode 진입 장벽·handoff 소비 |
-| `preparation/events.py` | native 이벤트 어댑터·wake·progress 연결 |
-| `preparation/coordinator.py` | 준비 순서·decode 장벽·취소 후 재확인 |
-| `preparation/plan.py` | 선두 선택·출력 도달 그래프·미완료 encoder 판정 정본 |
-| `preparation/invocation.py` | 호출 기본값 정규화·중첩 speculative 컨텍스트·예외 후 복구 |
-| `preparation/policy.py` | 부작용 없는 CLIP 우선·2 step 결정 |
-| `preparation/progress.py` | native sampler step·total 보관 · 시간 추정 제외 |
-| `preparation/scheduler.py` | 준비 예약·step 결정 상태·실행 시간 관측 |
-| `preparation/actions.py` | CLIP 선계산·VAE 예약 무효화·dummy 웜업·요청별 취소 이벤트 |
-| `preparation/inputs.py` | CPU 조상 허용 목록·순환/깊이 차단 |
-| `preparation/handoff.py` | 직렬화 예산·입력 서명·일회 전달 |
-| `preparation/gates.py` | peer별 입장 직렬화·전경 입장 우선 |
-| `preparation/memory.py` | 가용 RAM·폐기 가능 cache 정리 |
-| `core/cancellation.py`·`core/transport.py` | 요청별 협력 취소·전송·history 확인 |
-| `vae/warmup.py`·`vae/worker.py` | ready receipt·고정 dummy decode |
-| `web/preparation.js`·`scheduler_view.js` | 상태 창·step 구간·다음 CLIP 우선 설명 |
+| `rust/src/graph.rs` | 선두·도달 그래프·encoder 판정·fingerprint |
+| `rust/src/preparation.rs` | CLIP 우선·2 step admission·진행·예약·관측 |
+| `rust/src/execution.rs` | Preparation 역할·CPU 조상·gate·handoff·메모리 압력 |
+| `rust/src/execution/coordinator.rs` | 준비 순서·decode 장벽·취소 후 재확인 |
+| `rust/src/execution/actions.rs` | 사전 계산·VAE 무효화·dummy 웜업·취소 이벤트 |
+| `rust/src/execution/integration.rs` | managed 호출·입력 제외·등록 정책 |
+| `remoteworker/preparation/` | Comfy discovery·event/thread/context·서명 바인딩 adapter |
+| `rust/src/request.rs`·`boundary.rs` | 대상 취소·입력 정리·외부 계약 |
+| `remoteworker/core/transport.py` | HTTP·history polling adapter |
+| `rust/src/vae/policy.rs`·`execution.rs` | warmup receipt·고정 dummy decode 순서 |
+| `web/preparation.js`·`scheduler_view.js` | 기본 상태·상세 설명·이력 |
 
 ## 호출 의존성
 

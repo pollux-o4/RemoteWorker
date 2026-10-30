@@ -29,21 +29,21 @@ sequenceDiagram
 
 | 코드 | 소유 책임 |
 | --- | --- |
-| `pipeline/__init__.py` | GenRel AMD 활성 조건·native host 계약 검사·worker 설치 |
-| `pipeline/slots.py` | 로컬 소유권·원격 대기 중 반환·결과 준비 후 재입장·최대 2개 작업 상태 |
-| `pipeline/host.py` | native executor/cache 구성·큐 완료 이력·실행 상태 저장/복원·취소·유휴 정리 |
-| `pipeline/previews.py` | 직접 연결 native PreviewImage의 CPU 임시 PNG·원래 prompt/client 이벤트·재입장 시 UI 재사용 |
-| `pipeline/reuse.py` | native 입력 signature 기반 MODEL 출력의 약한 참조 재사용·16개 키 상한 |
-| `preparation/integration.py` | 준비된 conditioning의 peer gate 없는 소비·실제 decoder에서 슬롯 반환 |
-| `preparation/coordinator.py` | 현재 로컬 작업 우선 관측·다음 CLIP lookahead·파이프라인 중 dummy 웜업 제외 |
-| `web/scheduler_view.js`·`preparation.js` | 로컬/원격/결과 준비 완료 단계·원래 작업 ID·메모리 보류 표시 |
+| `rust/src/execution.rs` | typed 슬롯 단계·최대 2개 작업·peer gate·weak MODEL 재사용 |
+| `rust/src/execution/host.rs` | 큐 입장·executor/cache 구성·완료 이력·취소·유휴 정리·원격 완료 순서 |
+| `rust/src/execution/previews.rs` | 직접 PreviewImage 판정·원래 prompt/client 이벤트·UI 재사용 |
+| `rust/src/execution/integration.rs`·`coordinator.rs` | managed handoff·현재 작업 관측·다음 CLIP·dummy 웜업 제외 |
+| `remoteworker/pipeline/__init__.py` | Comfy host 계약 검사·worker 설치 |
+| `remoteworker/pipeline/host.py` | native state 캡처·복원·GPU API·thread·middleware adapter |
+| `remoteworker/pipeline/slots.py` | Python lock·thread-local·context manager adapter |
+| `web/scheduler_view.js`·`preparation.js` | 단계·작업 ID·메모리 보류 표시 |
 
 ## 실행 상태 계약
 
 - 슬롯 반환 이전: 다음 선두 작업 캡처·MODEL 재사용 정보 발행·native model tracker의 현재 사용 예약 해제
 - 보존 상태: client ID·현재 node/prompt ID·workflow metadata·progress registry·RAM cache callback/headroom·미리보기 방식·GraphBuilder prefix·model tracker 참조
 - 원격 대기: 캡처한 다음 선두의 CLIP 우선 준비 후 실제 VAE·해당 작업의 취소 Event만 관측 · 다른 로컬 작업의 전역 interrupt 소비 제외
-- 재입장: 상태 복원·model tracker 사용 예약 복구·해당 작업의 interrupt 복원 → 원래 decoder 결과·후속 노드 계속 실행
+- 재입장: Ready→Restoring에서 ready 예약 해제 → 상태·model tracker·해당 작업 interrupt 복원 → Local · 복원 실패 시 Failed·작업 정리·후속 입장 허용
 - peer gate 반환: 로컬 슬롯 재입장 이전 · peer 대기와 로컬 슬롯 사이의 순환 대기 방지
 - 선계산 전환: native `is_changed` 메타데이터 제외·입력 계약 snapshot 비교 · 선두의 실행 중 전환으로 정상 선계산 취소 금지
 - 준비된 conditioning: peer gate 대기 중에도 일회 결과 소비 · 이전 실제 VAE를 기다리는 중복 인코딩 방지
