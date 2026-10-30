@@ -195,7 +195,8 @@ class DeliveryBrowserContractTests(unittest.TestCase):
             assert.equal(node.outputs[0].label,"이미지");
             mode.value="tensor"; applyDelivery(node);
             assert.equal(tile.hidden,false); assert.equal(fps.hidden,true);
-            assert.match(node.outputs[1].label,/비활성/);
+            assert.equal(node.outputs[1].label,"미사용");
+            assert.match(node.outputs[1].tooltip,/비활성 파일 경로/);
         ''', app='export const app={extensions:[],registerExtension(extension){this.extensions.push(extension)}};')
 
     def test_old_connection_failure_cannot_overwrite_a_new_success(self):
@@ -209,7 +210,7 @@ class DeliveryBrowserContractTests(unittest.TestCase):
             let reject;
             api.fetchApi=()=>new Promise((_,r)=>reject=r);
             const first=checkDelivery(node);
-            api.fetchApi=async()=>({ok:true,json:async()=>({root:"/shared"})});
+            api.fetchApi=async()=>({ok:true,json:async()=>({root:"/shared",ready:true})});
             await checkDelivery(node);
             reject(new Error("old failure")); await first;
             assert.equal(status.dataset.state,"ready");

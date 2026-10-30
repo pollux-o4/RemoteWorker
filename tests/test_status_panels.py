@@ -114,7 +114,7 @@ class StatusPanelTests(unittest.TestCase):
           const node={widgets:[{name:'server_url',value:'http://peer'}],_deliveryPanel:panel};
           const pending=checkDelivery(node);assert.equal(timers[0].delay,10000);timers[0].callback();await pending;
           assert.equal(status.dataset.state,'error');assert.equal(status.textContent,'연결 응답 지연');assert.equal(button.textContent,'다시 확인');
-          api.fetchApi=async()=>({ok:true,json:async()=>({root:'/shared'})});await checkDelivery(node);
+          api.fetchApi=async()=>({ok:true,json:async()=>({root:'/shared',ready:true})});await checkDelivery(node);
           assert.equal(status.textContent,'공유 폴더 연결됨');
           api.fetchApi=(_,options)=>new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Object.assign(new Error('aborted'),{name:'AbortError'}))));
           const dialogRequest=showPreparation();timers.at(-1).callback();await dialogRequest;
@@ -124,6 +124,33 @@ class StatusPanelTests(unittest.TestCase):
           api.fetchApi=async()=>({ok:true,json:async()=>({pipeline:{enabled:true,jobs:[]},events:[]})});
           await retry.onclick();assert.equal(dialog.querySelector('[role=status]').textContent,'대기');
           dialog.querySelector('button').click();
+        ''',api='export const api={};')
+
+    def test_connection_requires_explicit_ready_and_nonempty_root_while_stale_bad_payload_is_ignored(self):
+        self.run_dom('''
+          import assert from 'node:assert/strict';
+          const {api}=await import('./scripts/api.js');
+          const {setupDelivery,checkDelivery}=await import('./custom/web/vae_delivery.js');
+          const node={type:'RemoteVAEDecodeAudio',widgets:[{name:'server_url',value:'http://peer'},{name:'output_mode',value:'shared'}],
+            addDOMWidget(_,__,panel){document.body.append(panel);return {};}};
+          setupDelivery(node);const status=node._deliveryPanel.querySelector('[role=status]');
+          for (const ready of [undefined,null,false,0,1,'false','true',{},[]]) {
+            api.fetchApi=async()=>({ok:true,json:async()=>({root:'/shared',ready})});
+            await checkDelivery(node);assert.equal(status.dataset.state,'error',String(ready));
+            assert.notEqual(status.textContent,'공유 폴더 연결됨');
+          }
+          for (const root of ['', '  ', null, 42, {}]) {
+            api.fetchApi=async()=>({ok:true,json:async()=>({root,ready:true})});
+            await checkDelivery(node);assert.equal(status.dataset.state,'error',String(root));
+          }
+          let finish;
+          api.fetchApi=()=>new Promise(resolve=>finish=resolve);
+          const stale=checkDelivery(node);
+          api.fetchApi=async()=>({ok:true,json:async()=>({root:'/confirmed',ready:true})});
+          await checkDelivery(node);assert.equal(status.dataset.state,'ready');
+          finish({ok:true,json:async()=>({root:'/stale',ready:'false'})});await stale;
+          assert.equal(status.dataset.state,'ready');assert.equal(status.textContent,'공유 폴더 연결됨');
+          assert.equal(node._deliveryPanel.querySelector('[data-diagnostic]').textContent,'/confirmed');
         ''',api='export const api={};')
 
     def test_removed_node_ignores_delivery_response_and_preserves_callbacks(self):

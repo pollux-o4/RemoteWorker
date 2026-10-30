@@ -80,7 +80,10 @@ export function applyDelivery(node) {
         if (["tile_size", "overlap", "temporal_size", "temporal_overlap"].includes(widget.name)) widget.hidden = !node.showAdvanced;
     }
     if (node.outputs?.[0]) node.outputs[0].label = (node.comfyClass || node.type) === "RemoteVAEDecodeAudio" ? "오디오" : "이미지";
-    if (node.outputs?.[1]) node.outputs[1].label = "파일 경로 · 비활성";
+    if (node.outputs?.[1]) {
+        node.outputs[1].label = "미사용";
+        node.outputs[1].tooltip = "기존 워크플로 호환용 비활성 파일 경로 출력";
+    }
     if (node._deliveryPanel) {
         node._deliveryPanel.hidden = !shared;
         if (!shared && node._deliveryController) invalidateDelivery(node);
@@ -111,7 +114,7 @@ export async function checkDelivery(node) {
         const result = await response.json();
         if (!current()) return;
         if (!response.ok) throw new Error(result?.error || "공유 폴더 확인 실패");
-        if (typeof result?.root !== "string" || !result.root.trim() || result.ready === false) {
+        if (typeof result?.root !== "string" || !result.root.trim() || result.ready !== true) {
             throw new Error("공유 폴더 확인 결과가 없습니다. 다시 확인하세요.");
         }
         setDeliveryState(node, "ready", "공유 폴더 연결됨", result.root || "");
