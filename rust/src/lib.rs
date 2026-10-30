@@ -2,11 +2,15 @@
 mod artifacts;
 mod boundary;
 mod cache;
+mod encoder_policy;
+mod encoder_runtime;
 mod execution;
 mod graph;
 mod preparation;
+mod profiles;
 mod protocol;
 mod request;
+mod workflows;
 
 pub use protocol::RequestId;
 use pyo3::prelude::*;
@@ -34,8 +38,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     preparation::register(m)?;
     graph::register(m)?;
     execution::register(m)?;
+    profiles::register(m)?;
+    workflows::register(m)?;
     boundary::register(m)?;
     request::register(m)?;
+    encoder_runtime::register(m)?;
+    encoder_policy::register(m)?;
     m.add("ARCHITECTURE", "modular-monolith")?;
     Ok(())
 }

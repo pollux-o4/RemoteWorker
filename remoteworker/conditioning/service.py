@@ -2,23 +2,34 @@
 
 from __future__ import annotations
 
+# Rust runtime callback exports.
+import uuid as uuid
+from ..core.artifacts import CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
+from ..core.execution import (
+    RequestInputs as RequestInputs,
+    completed_artifacts as completed_artifacts,
+)
+from ..core.media import ordered_image_frames as ordered_image_frames
+from ..core.protocol import validate_cleanup_capability as validate_cleanup_capability
+from ..core.transport import HttpComfyApi as HttpComfyApi
+from .workflow import (
+    build_strategy_workflow as build_strategy_workflow,
+    build_workflow as build_workflow,
+    validate_strategy_capability as validate_strategy_capability,
+)
+
 from ..preparation.capabilities import Preparation
 
 import hashlib
-import io
-import uuid
 from typing import Any
 
-from ..core.artifacts import CONDITIONING_ARTIFACT
-from ..core.execution import RequestInputs, completed_artifacts
 from ..core.media import (
     _MAX_IMAGE_ATTACHMENTS,
     DynamicImageAndPolicyInputs,
     encode_image_frame_png,
-    ordered_image_frames,
 )
 from ..core.protocol import (
-    CACHE_POLICIES,
+    CACHE_POLICIES as CACHE_POLICIES,
     DEFAULT_CACHE_POLICY,
     DEFAULT_PEER_MEMORY_POLICY,
     PEER_MEMORY_POLICIES,
@@ -27,21 +38,18 @@ from ..core.protocol import (
     _validate_clip_selection,
     _validate_policy,
     _validate_server_url,
-    validate_cleanup_capability,
 )
 from ..core.result_cache import ByteResultCache
-from ..core.transport import HttpComfyApi
 from ..defaults import DEFAULT_SERVER_URL, default_value
 from .workflow import (
     STRATEGIES,
-    build_strategy_workflow,
-    build_workflow,
-    validate_strategy_capability,
 )
 
 _CONDITIONING_BYTES_CACHE = ByteResultCache(
     max_entries=8,
-    max_bytes=_parse_env_positive_int("REMOTE_CONDITIONING_CACHE_BYTES", 256 * 1024 * 1024),
+    max_bytes=_parse_env_positive_int(
+        "REMOTE_CONDITIONING_CACHE_BYTES", 256 * 1024 * 1024
+    ),
 )
 
 
@@ -60,17 +68,22 @@ def _conditioning_cache_key(
     server_url: str,
     peer_memory_policy: str,
 ) -> tuple[Any, ...]:
+    from .._native import cache_identity_native
+
     _validate_clip_selection(clip)
     _validate_server_url(server_url)
     _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
-    return (
-        strategy_name,
-        clip,
-        prompt,
-        tuple(_frame_fingerprint(frame) for frame in frames),
-        grounding_px,
-        system_prompt,
-        server_url.rstrip("/"),
+    return cache_identity_native(
+        "conditioning",
+        dict(
+            strategy_name=strategy_name,
+            clip=clip,
+            prompt=prompt,
+            frames=tuple(_frame_fingerprint(frame) for frame in frames),
+            grounding_px=grounding_px,
+            system_prompt=system_prompt,
+            server_url=server_url,
+        ),
     )
 
 
@@ -115,12 +128,10 @@ def execute_bytes(
     api: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> bytes:
-    _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
-    if peer_memory_policy == DEFAULT_PEER_MEMORY_POLICY:
-        validate_cleanup_capability(api.require_node("VRAMCleanup"))
-    workflow = build_workflow(clip, prompt, request_id, peer_memory_policy)
-    with completed_artifacts(api, workflow, request_id, (CONDITIONING_ARTIFACT,)) as blobs:
-        return blobs["conditioning"]
+    from .._native import encoder_execute_native
+    import sys
+
+    return encoder_execute_native("conditioning", sys.modules[__name__], locals())
 
 
 def execute_strategy(
@@ -163,47 +174,12 @@ def execute_strategy_bytes(
     api: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> bytes:
-    """Execute text or image-grounded conditioning through one narrow Strategy boundary."""
-    _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
-    if strategy_name == "text":
-        if frames:
-            raise ValueError("Remote Conditioning text strategy requires 0 images")
-        return execute_bytes(
-            clip=clip,
-            prompt=prompt,
-            request_id=request_id,
-            api=api,
-            peer_memory_policy=peer_memory_policy,
-        )
-    strategy = STRATEGIES.get(strategy_name)
-    if strategy is None:
-        raise ValueError(f"Remote Conditioning strategy is not registered: {strategy_name!r}")
-    maximum = strategy.maximum_images
-    if len(frames) < strategy.minimum_images or (maximum is not None and len(frames) > maximum):
-        maximum_text = "unbounded" if maximum is None else str(maximum)
-        raise ValueError(
-            f"Remote Conditioning {strategy.name} requires {strategy.minimum_images} to {maximum_text} images; got {len(frames)}"
-        )
-    validate_strategy_capability(strategy, api.require_node(strategy.remote_node), len(frames))
-    if peer_memory_policy == DEFAULT_PEER_MEMORY_POLICY:
-        validate_cleanup_capability(api.require_node("VRAMCleanup"))
-    encoded = [encode_image_frame_png(frame) for frame in frames]
-    refs: list[str] = []
-    with RequestInputs(api, request_id) as request:
-        for index, png in enumerate(encoded, start=1):
-            refs.append(request.upload_image(index=index, png=png))
-        workflow = build_strategy_workflow(
-            strategy_name=strategy_name,
-            clip=clip,
-            prompt=prompt,
-            request_id=request_id,
-            image_refs=refs,
-            grounding_px=grounding_px,
-            system_prompt=system_prompt,
-            peer_memory_policy=peer_memory_policy,
-        )
-        with completed_artifacts(api, workflow, request_id, (CONDITIONING_ARTIFACT,)) as blobs:
-            return blobs["conditioning"]
+    from .._native import encoder_execute_native
+    import sys
+
+    return encoder_execute_native(
+        "conditioning-strategy", sys.modules[__name__], locals()
+    )
 
 
 class RemoteConditioning:
@@ -259,24 +235,17 @@ class RemoteConditioning:
         peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
         cache_policy: str = DEFAULT_CACHE_POLICY,
     ) -> bool | str:
-        for field_name, value in (
-            ("remote_text_encoder", remote_text_encoder),
-            ("clip_type", clip_type),
-            ("device", device),
-        ):
-            if not isinstance(value, str) or not value.strip():
-                return f"Remote Conditioning {field_name} must be a non-empty string"
-        try:
-            _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
-            _validate_policy(cache_policy, CACHE_POLICIES, "cache_policy")
-        except ValueError as exc:
-            return str(exc)
-        return True
+        from .._native import encoder_local_inputs_native
+
+        return encoder_local_inputs_native("conditioning", locals())
 
     @classmethod
-    def IS_CHANGED(cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any) -> float:
-        _validate_policy(cache_policy, CACHE_POLICIES, "cache_policy")
-        return float("nan") if cache_policy == "always_refresh" else 0
+    def IS_CHANGED(
+        cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any
+    ) -> float:
+        from .._native import cache_fingerprint_native
+
+        return cache_fingerprint_native(cache_policy, "Remote Conditioning")
 
     def run(
         self,
@@ -295,49 +264,17 @@ class RemoteConditioning:
         unique_id=None,
         **images: Any,
     ) -> tuple[Any]:
-        try:
-            import torch
+        from .._native import encoder_run_native
+        import sys
 
-            frames = [] if conditioning_strategy == "text" else ordered_image_frames(image_count, **images)
-            clip = ClipSelection(remote_text_encoder, clip_type, device)
-            cache_key = None
-            if cache_policy == DEFAULT_CACHE_POLICY:
-                cache_key = _conditioning_cache_key(
-                    strategy_name=conditioning_strategy,
-                    clip=clip,
-                    prompt=prompt,
-                    frames=frames,
-                    grounding_px=grounding_px,
-                    system_prompt=system_prompt,
-                    server_url=server_url,
-                    peer_memory_policy=peer_memory_policy,
-                )
-                cached = _get_cached_conditioning_bytes(cache_key)
-                if cached is not None:
-                    print("[RemoteConditioning] cache hit")
-                    return (torch.load(io.BytesIO(cached), map_location="cpu", weights_only=False),)
-            else:
-                _validate_policy(cache_policy, CACHE_POLICIES, "cache_policy")
-            data = execute_strategy_bytes(
-                strategy_name=conditioning_strategy,
-                clip=clip,
-                prompt=prompt,
-                request_id=uuid.uuid4().hex,
-                frames=frames,
-                grounding_px=grounding_px,
-                system_prompt=system_prompt,
-                api=HttpComfyApi(server_url, timeout_seconds),
-                peer_memory_policy=peer_memory_policy,
-            )
-            if cache_key is not None:
-                _put_cached_conditioning_bytes(cache_key, data)
-            result = torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
-        except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
-            raise RuntimeError(f"Remote Conditioning failed: {exc}") from exc
-        return (result,)
+        return encoder_run_native("conditioning", sys.modules[__name__], locals())
 
 
 NODE_CLASS_MAPPINGS = {"RemoteConditioning": RemoteConditioning}
 NODE_DISPLAY_NAME_MAPPINGS = {"RemoteConditioning": "Remote Conditioning"}
 
-ZIT_DEFAULT_CLIP = ClipSelection(default_value("conditioning_clip", ""), default_value("conditioning_clip_type", "lumina2"), "default")
+ZIT_DEFAULT_CLIP = ClipSelection(
+    default_value("conditioning_clip", ""),
+    default_value("conditioning_clip_type", "lumina2"),
+    "default",
+)

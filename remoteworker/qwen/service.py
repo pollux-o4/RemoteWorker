@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
+# Rust runtime callback exports.
+import uuid as uuid
+from ..core.execution import (
+    RequestInputs as RequestInputs,
+    completed_artifacts as completed_artifacts,
+)
+from ..core.protocol import (
+    resolve_peer_model_name as resolve_peer_model_name,
+    validate_cleanup_capability as validate_cleanup_capability,
+)
+from ..core.transport import HttpComfyApi as HttpComfyApi
+
+from .._native import workflow_build
+
 from ..preparation.capabilities import Preparation
 
 import hashlib
 import io
-import uuid
 from typing import Any
 
-from ..core.execution import RequestInputs, completed_artifacts
 from ..defaults import DEFAULT_SERVER_URL, default_value
 
 try:
@@ -25,17 +37,18 @@ from ..core.protocol import (
     DEFAULT_PEER_MEMORY_POLICY,
     PEER_MEMORY_POLICIES,
     ClipSelection,
-    resolve_peer_model_name,
-    _validate_policy,
-    validate_cleanup_capability,
+    _validate_policy as _validate_policy,
 )
 from ..core.result_cache import ByteResultCache
-from ..core.transport import HttpComfyApi
 
 QWEN_WORKER = "RemoteQwenImage21Encode"
 SAVE_REMOTE_CONDITIONING = "SaveRemoteConditioning"
-POSITIVE_ARTIFACT = RemoteArtifactSpec("positive", "save_positive", "conditioning", ".cond")
-NEGATIVE_ARTIFACT = RemoteArtifactSpec("negative", "save_negative", "conditioning", ".cond")
+POSITIVE_ARTIFACT = RemoteArtifactSpec(
+    "positive", "save_positive", "conditioning", ".cond"
+)
+NEGATIVE_ARTIFACT = RemoteArtifactSpec(
+    "negative", "save_negative", "conditioning", ".cond"
+)
 LATENT_ARTIFACT = RemoteArtifactSpec("latent", "save_latent", "latents", ".latent")
 DEFAULT_QWEN_CLIP = default_value("qwen_clip", "")
 DEFAULT_QWEN_VAE = default_value("qwen_vae", "")
@@ -44,107 +57,115 @@ _CACHE = ByteResultCache(max_entries=4, max_bytes=512 * 1024 * 1024)
 
 
 def _validate_choice(name: str, value: Any) -> str:
-    if not isinstance(value, str) or not value.strip() or "\x00" in value:
-        raise ValueError(f"Remote Qwen Image 2.1 {name} must be a non-empty string")
-    return value
+    from .._native import clean_model_name_native
+
+    return clean_model_name_native(value, "Remote Qwen Image 2.1", name, False)
 
 
-def _validate_connection(server_url: Any, timeout_seconds: Any, remote_text_encoder: Any, vae_name: Any) -> tuple[str, int, str, str]:
-    server_url = _validate_choice("server_url", server_url)
-    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 5 <= timeout_seconds <= 1800:
-        raise ValueError("Remote Qwen Image 2.1 timeout_seconds must be 5 to 1800")
-    return (
-        server_url,
-        timeout_seconds,
-        _validate_choice("remote_text_encoder", remote_text_encoder),
-        _validate_choice("vae_name", vae_name),
+def _validate_connection(
+    server_url: Any, timeout_seconds: Any, remote_text_encoder: Any, vae_name: Any
+) -> tuple[str, int, str, str]:
+    from .._native import qwen_connection_native
+
+    return qwen_connection_native(
+        server_url, timeout_seconds, remote_text_encoder, vae_name
     )
 
 
-def _validate_dynamic_peer_models(remote_text_encoder: Any, vae_name: Any) -> bool | str:
-    """Allow values refreshed from a peer while retaining execution-time capability checks."""
-    try:
-        _validate_choice("remote_text_encoder", remote_text_encoder)
-        _validate_choice("vae_name", vae_name)
-    except ValueError as exc:
-        return str(exc)
-    return True
+def _validate_dynamic_peer_models(
+    remote_text_encoder: Any, vae_name: Any
+) -> bool | str:
+    from .._native import encoder_local_inputs_native
+
+    return encoder_local_inputs_native("qwen", locals())
 
 
 def _ordered_qwen_image_frames(**images: Any) -> list[Any]:
-    indices = sorted(
-        int(name[6:]) for name in images
-        if name.startswith("image_") and name[6:].isdigit()
-    )
-    if len(indices) > _MAX_IMAGES or indices != list(range(1, len(indices) + 1)):
-        raise ValueError(f"Remote Qwen Image 2.1 accepts up to {_MAX_IMAGES} consecutive image sockets")
-    frames = ordered_image_frames(len(indices), **images)
-    if len(frames) > _MAX_IMAGES:
-        raise ValueError(f"Remote Qwen Image 2.1 accepts at most {_MAX_IMAGES} image attachments")
+    from .._native import qwen_socket_count_native, validate_qwen_frame_count_native
+
+    count = qwen_socket_count_native(images)
+    frames = ordered_image_frames(count, **images)
+    validate_qwen_frame_count_native(len(frames))
     return frames
 
 
 def _validate_qwen_capability(info: dict[str, Any]) -> None:
-    try:
-        required = info["input"]["required"]
-        optional = info["input"].get("optional", {})
-        outputs = info["output"]
-    except (KeyError, TypeError) as exc:
-        raise RuntimeError("Remote Qwen Image 2.1 peer capability is malformed") from exc
-    if not {"clip", "prompt", "negative_prompt", "resolution"}.issubset(required) or not {"vae", "negative_vision", "image_1"}.issubset(optional) or not {"CONDITIONING", "LATENT"}.issubset(outputs):
-        raise RuntimeError("Remote Qwen Image 2.1 peer is incompatible; update custom-nodes on the peer")
+    from .._native import workflow_validate
+
+    workflow_validate("qwen", info, "", 0)
 
 
-def _validate_peer_loaders(api: Any, clip: ClipSelection, vae_name: str) -> tuple[ClipSelection, str]:
-    options = api.clip_loader_options()
-    clip = clip._replace(clip_name=resolve_peer_model_name(clip.clip_name, options.get("clip_name", []), "clip_name"))
-    for field, value in zip(("clip_name", "clip_type", "device"), clip):
-        if value not in options.get(field, []):
-            raise ValueError(f"Remote Qwen Image 2.1 peer does not provide {field}: {value!r}")
-    try:
-        vaes = api.require_node("VAELoader")["input"]["required"]["vae_name"][0]
-    except (KeyError, TypeError, IndexError) as exc:
-        raise RuntimeError("Remote Qwen Image 2.1 peer VAELoader capability is malformed") from exc
-    if not isinstance(vaes, list):
-        raise RuntimeError("Remote Qwen Image 2.1 peer VAELoader capability is malformed")
-    return clip, resolve_peer_model_name(vae_name, vaes, "vae_name")
+def _validate_peer_loaders(
+    api: Any, clip: ClipSelection, vae_name: str
+) -> tuple[ClipSelection, str]:
+    from .._native import peer_loaders_native
+    import sys
+
+    return peer_loaders_native("qwen", sys.modules[__name__], api, clip, (vae_name,))
 
 
-def build_workflow(*, clip: ClipSelection, vae_name: str, prompt: str, negative_prompt: str, resolution: int, negative_vision: bool, image_refs: list[str], request_id: str, peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY) -> dict[str, Any]:
-    _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
-    if not 0 <= len(image_refs) <= _MAX_IMAGES:
-        raise ValueError(f"Remote Qwen Image 2.1 accepts at most {_MAX_IMAGES} images")
-    if not isinstance(resolution, int) or isinstance(resolution, bool) or not 0 <= resolution <= 4096:
-        raise ValueError("Remote Qwen Image 2.1 resolution must be 0 to 4096")
-    for name, value in (("prompt", prompt), ("negative_prompt", negative_prompt), ("vae_name", vae_name), ("request_id", request_id)):
-        _validate_choice(name, value) if name != "negative_prompt" or value else None
-    workflow: dict[str, Any] = {
-        "clip": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip.clip_name, "type": clip.clip_type, "device": clip.device}},
-        "vae": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
-        "encode": {"class_type": QWEN_WORKER, "inputs": {"clip": ["clip", 0], "vae": ["vae", 0], "prompt": prompt, "negative_prompt": negative_prompt, "resolution": resolution, "negative_vision": bool(negative_vision)}},
-        "save_positive": {"class_type": SAVE_REMOTE_CONDITIONING, "inputs": {"conditioning": ["encode", 0], "filename_prefix": f"remote-conditioning/{request_id}/positive"}},
-        "save_negative": {"class_type": SAVE_REMOTE_CONDITIONING, "inputs": {"conditioning": ["encode", 1], "filename_prefix": f"remote-conditioning/{request_id}/negative", "dependency": ["save_positive", 0]}},
-        "save_latent": {"class_type": "SaveRemoteLatent", "inputs": {"samples": ["encode", 2], "filename_prefix": f"remote-conditioning/{request_id}/latent", "dependency": ["save_negative", 0]}},
-    }
-    for index, ref in enumerate(image_refs, start=1):
-        loader = f"image_{index}_loader"
-        workflow[loader] = {"class_type": "LoadImage", "inputs": {"image": ref}}
-        workflow["encode"]["inputs"][f"image_{index}"] = [loader, 0]
-    if peer_memory_policy == DEFAULT_PEER_MEMORY_POLICY:
-        workflow["cleanup"] = {"class_type": "VRAMCleanup", "inputs": {"anything": ["save_latent", 0], "offload_model": True, "offload_cache": True, "reset_execution_cache": False}}
-    return workflow
+def build_workflow(
+    *,
+    clip: ClipSelection,
+    vae_name: str,
+    prompt: str,
+    negative_prompt: str,
+    resolution: int,
+    negative_vision: bool,
+    image_refs: list[str],
+    request_id: str,
+    peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
+) -> dict[str, Any]:
+    return workflow_build("qwen", locals())
 
 
-def _cache_key(*, clip: ClipSelection, vae_name: str, prompt: str, negative_prompt: str, resolution: int, negative_vision: bool, frames: list[Any], server_url: str) -> tuple[Any, ...]:
-    return ("qwen-image-2.1", clip, vae_name, prompt, negative_prompt, resolution, negative_vision, tuple(hashlib.sha256(encode_image_frame_png(frame)).hexdigest() for frame in frames), server_url.rstrip("/"))
+def _cache_key(
+    *,
+    clip: ClipSelection,
+    vae_name: str,
+    prompt: str,
+    negative_prompt: str,
+    resolution: int,
+    negative_vision: bool,
+    frames: list[Any],
+    server_url: str,
+) -> tuple[Any, ...]:
+    from .._native import cache_identity_native
+
+    return cache_identity_native(
+        "qwen",
+        dict(
+            clip=clip,
+            vae_name=vae_name,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            resolution=resolution,
+            negative_vision=negative_vision,
+            frames=tuple(
+                hashlib.sha256(encode_image_frame_png(frame)).hexdigest()
+                for frame in frames
+            ),
+            server_url=server_url,
+        ),
+    )
 
 
-def _decode(positive: bytes, negative: bytes, latent: bytes) -> tuple[Any, Any, dict[str, Any]]:
+def _decode(
+    positive: bytes, negative: bytes, latent: bytes
+) -> tuple[Any, Any, dict[str, Any]]:
     import torch
-    latent_value = torch.load(io.BytesIO(latent), map_location="cpu", weights_only=False)
-    if not isinstance(latent_value, dict) or "samples" not in latent_value:
-        raise RuntimeError("Remote Qwen Image 2.1 latent artifact is invalid")
-    return (torch.load(io.BytesIO(positive), map_location="cpu", weights_only=False), torch.load(io.BytesIO(negative), map_location="cpu", weights_only=False), latent_value)
+
+    latent_value = torch.load(
+        io.BytesIO(latent), map_location="cpu", weights_only=False
+    )
+    from .._native import validate_latent_artifact_native
+
+    validate_latent_artifact_native(latent_value, "Remote Qwen Image 2.1")
+    return (
+        torch.load(io.BytesIO(positive), map_location="cpu", weights_only=False),
+        torch.load(io.BytesIO(negative), map_location="cpu", weights_only=False),
+        latent_value,
+    )
 
 
 def execute(
@@ -160,36 +181,16 @@ def execute(
     api: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> tuple[bytes, bytes, bytes]:
-    _validate_qwen_capability(api.require_node(QWEN_WORKER))
-    clip, vae_name = _validate_peer_loaders(api, clip, vae_name)
-    if peer_memory_policy == DEFAULT_PEER_MEMORY_POLICY:
-        validate_cleanup_capability(api.require_node("VRAMCleanup"))
-    refs: list[str] = []
-    with RequestInputs(api, request_id) as request:
-        for index, frame in enumerate(frames, start=1):
-            refs.append(request.upload_image(index=index, png=encode_image_frame_png(frame)))
-        workflow = build_workflow(
-            clip=clip,
-            vae_name=vae_name,
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            resolution=resolution,
-            negative_vision=negative_vision,
-            image_refs=refs,
-            request_id=request_id,
-            peer_memory_policy=peer_memory_policy,
-        )
-        with completed_artifacts(
-            api,
-            workflow,
-            request_id,
-            (POSITIVE_ARTIFACT, NEGATIVE_ARTIFACT, LATENT_ARTIFACT),
-        ) as blobs:
-            return tuple((blobs[name] for name in ("positive", "negative", "latent")))
+    from .._native import encoder_execute_native
+    import sys
+
+    return encoder_execute_native("qwen", sys.modules[__name__], locals())
 
 
 def preparation_inputs(values):
-    return {key.removeprefix("images."): value for key, value in values.items()}
+    from .._native import qwen_preparation_inputs_native
+
+    return qwen_preparation_inputs_native(values)
 
 
 class RemoteQwenImage21Service:
@@ -197,27 +198,25 @@ class RemoteQwenImage21Service:
 
     REMOTE_PREPARATION = Preparation("encoder", inputs=preparation_inputs)
 
-    def run(self, prompt: str, negative_prompt: str, server_url: str, timeout_seconds: int, remote_text_encoder: str, vae_name: str, resolution: int, negative_vision: bool, peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY, cache_policy: str = DEFAULT_CACHE_POLICY, unique_id=None, **images: Any) -> tuple[Any, Any, dict[str, Any]]:
-        _validate_policy(peer_memory_policy, PEER_MEMORY_POLICIES, "peer_memory_policy")
-        _validate_policy(cache_policy, CACHE_POLICIES, "cache_policy")
-        server_url, timeout_seconds, remote_text_encoder, vae_name = _validate_connection(
-            server_url, timeout_seconds, remote_text_encoder, vae_name
-        )
-        frames = _ordered_qwen_image_frames(**images)
-        clip = ClipSelection(remote_text_encoder, "qwen_image", "default")
-        _validate_choice("prompt", prompt)
-        if not isinstance(negative_prompt, str):
-            raise ValueError("Remote Qwen Image 2.1 negative_prompt must be a string")
-        api = HttpComfyApi(server_url, timeout_seconds)
-        key = _cache_key(clip=clip, vae_name=vae_name, prompt=prompt, negative_prompt=negative_prompt, resolution=resolution, negative_vision=negative_vision, frames=frames, server_url=server_url)
-        cached = _CACHE.get(key) if cache_policy == DEFAULT_CACHE_POLICY else None
-        if cached is not None:
-            print("[RemoteQwenImage21] cache hit")
-            return _decode(*cached)
-        result = execute(clip=clip, vae_name=vae_name, prompt=prompt, negative_prompt=negative_prompt, resolution=resolution, negative_vision=negative_vision, frames=frames, request_id=uuid.uuid4().hex, api=api, peer_memory_policy=peer_memory_policy)
-        if cache_policy == DEFAULT_CACHE_POLICY:
-            _CACHE.put(key, result)
-        return _decode(*result)
+    def run(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        server_url: str,
+        timeout_seconds: int,
+        remote_text_encoder: str,
+        vae_name: str,
+        resolution: int,
+        negative_vision: bool,
+        peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
+        cache_policy: str = DEFAULT_CACHE_POLICY,
+        unique_id=None,
+        **images: Any,
+    ) -> tuple[Any, Any, dict[str, Any]]:
+        from .._native import encoder_run_native
+        import sys
+
+        return encoder_run_native("qwen", sys.modules[__name__], locals())
 
 
 if comfy_io is not None:
@@ -225,7 +224,9 @@ if comfy_io is not None:
     class RemoteQwenImage21Node(comfy_io.ComfyNode):
         """Native V3 presentation of the remote Qwen encoder contract."""
 
-        REMOTE_PREPARATION = Preparation("encoder", executor=RemoteQwenImage21Service, inputs=preparation_inputs)
+        REMOTE_PREPARATION = Preparation(
+            "encoder", executor=RemoteQwenImage21Service, inputs=preparation_inputs
+        )
 
         @classmethod
         def define_schema(cls):
@@ -322,7 +323,9 @@ if comfy_io is not None:
                         display_name="참조 이미지",
                         template=comfy_io.Autogrow.TemplateNames(
                             comfy_io.Image.Input("image", display_name="참조 이미지"),
-                            names=[f"image_{index}" for index in range(1, _MAX_IMAGES + 1)],
+                            names=[
+                                f"image_{index}" for index in range(1, _MAX_IMAGES + 1)
+                            ],
                             min=0,
                         ),
                         tooltip="편집에 반영할 이미지입니다. image_1을 연결하면 image_2가 나타나며, 최대 16개까지 추가됩니다.",
@@ -336,9 +339,12 @@ if comfy_io is not None:
             )
 
         @classmethod
-        def fingerprint_inputs(cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any) -> float:
-            _validate_policy(cache_policy, CACHE_POLICIES, "cache_policy")
-            return float("nan") if cache_policy == "always_refresh" else 0
+        def fingerprint_inputs(
+            cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any
+        ) -> float:
+            from .._native import cache_fingerprint_native
+
+            return cache_fingerprint_native(cache_policy, "Remote Conditioning")
 
         @classmethod
         def validate_inputs(
