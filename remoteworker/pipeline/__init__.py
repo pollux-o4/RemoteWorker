@@ -1,4 +1,4 @@
-"""Bounded prompt overlap; only remote IO runs outside the local execution slot."""
+"""Bounded prompt overlap; remote IO and CPU previews run outside the local execution slot."""
 
 runtime = None
 
