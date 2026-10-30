@@ -10,6 +10,7 @@ mod preparation;
 mod profiles;
 mod protocol;
 mod request;
+mod vae;
 mod workflows;
 
 pub use protocol::RequestId;
@@ -40,6 +41,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     execution::register(m)?;
     profiles::register(m)?;
     workflows::register(m)?;
+    vae::register(m)?;
     boundary::register(m)?;
     request::register(m)?;
     encoder_runtime::register(m)?;
