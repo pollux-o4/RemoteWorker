@@ -18,6 +18,8 @@ struct HostPolicy {
     admission: Admission,
     last_gc: f64,
     pending_cancel: HashSet<String>,
+    #[pyo3(get)]
+    stopping: bool,
 }
 #[pymethods]
 impl HostPolicy {
@@ -27,6 +29,7 @@ impl HostPolicy {
             admission: Admission::Open,
             last_gc: 0.0,
             pending_cancel: HashSet::new(),
+            stopping: false,
         }
     }
     #[getter]
@@ -321,6 +324,9 @@ fn host_worker_tick(
     prompt_queue: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     let py = host.py();
+    if policy(host)?.borrow(py).stopping {
+        return Ok(executor.clone().unbind());
+    }
     if policy(host)?.borrow(py).admission == Admission::RamPressure {
         py.detach(|| std::thread::sleep(Duration::from_millis(100)));
     }
@@ -330,6 +336,9 @@ fn host_worker_tick(
         return Ok(executor.clone().unbind());
     }
     with_context(&slots.getattr("lock")?, || {
+        if policy(host)?.borrow(py).stopping {
+            return Ok(executor.clone().unbind());
+        }
         if slots.getattr("ready")?.is_truthy()? {
             return Ok(executor.clone().unbind());
         }
@@ -413,7 +422,10 @@ fn execute_job(
     job.setattr("outputs", prompt.get_item(4)?)?;
     let execution = (|| {
         let cancelled = with_context(&host.getattr("queue")?.getattr("mutex")?, || {
-            let pending = policy(host)?.borrow_mut(py).pending_cancel.remove(&id);
+            let state = policy(host)?;
+            let mut state = state.borrow_mut(py);
+            let pending = state.pending_cancel.remove(&id) || state.stopping;
+            drop(state);
             Ok(pending || job.getattr("cancel")?.call_method0("is_set")?.is_truthy()?)
         })?;
         if cancelled {
@@ -597,6 +609,7 @@ fn host_remote(
 }
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<HostPolicy>()?;
+    m.add_function(wrap_pyfunction!(host_begin_shutdown, m)?)?;
     m.add_class::<PressureRelief>()?;
     m.add_function(wrap_pyfunction!(host_status, m)?)?;
     m.add_function(wrap_pyfunction!(host_share_models, m)?)?;
@@ -652,4 +665,19 @@ impl PressureRelief {
         }
         Ok(state.unbind())
     }
+}
+
+#[pyfunction]
+fn host_begin_shutdown(host: &Bound<'_, PyAny>) -> PyResult<()> {
+    policy(host)?.borrow_mut(host.py()).stopping = true;
+    let slots = host.getattr("slots")?;
+    for job in slots.getattr("jobs")?.call_method0("values")?.try_iter()? {
+        job?.getattr("cancel")?.call_method0("set")?;
+    }
+    if !slots.getattr("active")?.is_none() {
+        host.getattr("entry")?
+            .getattr("nodes")?
+            .call_method0("interrupt_processing")?;
+    }
+    Ok(())
 }

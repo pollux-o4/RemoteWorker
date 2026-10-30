@@ -1,4 +1,5 @@
 """Comfy worker adapter: native histories/caches, serialized GPU, isolated remote waits."""
+import atexit
 import gc
 import logging
 import threading
@@ -20,6 +21,9 @@ class ComfyHost:
         self.executors = []
         self.policy = _native.HostPolicy()
         self.previews = None
+        self._threads = []
+        self._thread_guard = threading.Lock()
+        self._shutdown_guard = threading.Lock()
 
     @property
     def admission(self):
@@ -115,13 +119,34 @@ class ComfyHost:
     def worker(self):
         from execution import PromptQueue
         executor = None
-        while True:
+        while not self.policy.stopping:
             executor = _native.host_worker_tick(self, executor, sys.modules[__name__], PromptQueue)
+
+    def shutdown(self):
+        with self._shutdown_guard:
+            from ..preparation.integration import coordinator
+            if coordinator is not None:
+                coordinator.shutdown(wait=False)
+            with self.slots.guard:
+                _native.host_begin_shutdown(self)
+            with self._thread_guard:
+                workers = tuple(self._threads)
+            current = threading.current_thread()
+            if current in workers:
+                return
+            for worker in workers:
+                worker.join()
+            if coordinator is not None:
+                coordinator.shutdown()
 
     def run(self, queue, server, asset_manager):
         self.queue, self.server, self.assets = queue, server, asset_manager
-        # Middleware must be installed during node registration, not after server startup.
-        threading.Thread(target=self.worker, daemon=True, name="pipeline-continuation").start()
+        with self._thread_guard:
+            atexit.register(self.shutdown)
+            self._threads.append(threading.current_thread())
+            continuation = threading.Thread(target=self.worker, daemon=True, name="pipeline-continuation")
+            continuation.start()
+            self._threads.append(continuation)
         self.worker()
 
 # Native callback namespace and public compatibility exports.

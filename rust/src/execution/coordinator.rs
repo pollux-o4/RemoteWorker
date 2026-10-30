@@ -619,6 +619,14 @@ fn prep_cancelled(
     following_id: &Bound<'_, PyAny>,
     expected: &Bound<'_, PyAny>,
 ) -> PyResult<bool> {
+    if owner
+        .getattr("stop")
+        .and_then(|stop| stop.call_method0("is_set"))
+        .and_then(|value| value.is_truthy())
+        .unwrap_or(false)
+    {
+        return Ok(true);
+    }
     let (running, pending) = queue(owner)?;
     let active = if running.len()? > 0 {
         running.get_item(0)?.get_item(1)?

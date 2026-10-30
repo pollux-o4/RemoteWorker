@@ -190,3 +190,72 @@ class NativeHostTests(unittest.TestCase):
                 host_interrupt(host, payload)
         self.assertFalse(host.policy.pending("A"))
         self.assertEqual(calls, [])
+
+
+class NativeShutdownTests(unittest.TestCase):
+    def test_torch_host_daemon_workers_join_before_interpreter_finalization(self):
+        import os
+        import subprocess
+        import sys
+        import textwrap
+        from pathlib import Path
+        from remoteworker import _native
+        code = textwrap.dedent('''
+            import atexit, importlib.util, os, sys, threading
+            from types import SimpleNamespace
+            import torch
+            import remoteworker
+            spec = importlib.util.spec_from_file_location("remoteworker._native", os.environ["TEST_NATIVE_BINARY"])
+            native = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = native
+            spec.loader.exec_module(native)
+            remoteworker._native = native
+            from remoteworker.pipeline.host import ComfyHost
+            sys.modules["execution"] = SimpleNamespace(PromptQueue=SimpleNamespace())
+            host = ComfyHost(SimpleNamespace())
+            host.executor = lambda: torch.zeros(2, 2)
+            host.housekeeping = lambda: None
+            ready = threading.Event()
+            def take(**kwargs):
+                ready.set()
+                threading.Event().wait(0.1)
+                return None
+            queue = SimpleNamespace(get=take)
+            worker = threading.Thread(target=host.run, args=(queue, None, None), daemon=True)
+            def check_shutdown():
+                if worker.is_alive() or any(t.is_alive() for t in host._threads) or not host.policy.stopping:
+                    os._exit(72)
+                print("joined native workers before finalization", flush=True)
+            atexit.register(check_shutdown)
+            worker.start()
+            assert ready.wait(3)
+        ''')
+        result = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=20,
+            env={**os.environ, "REMOTEWORKER_CONFIG": "", "TEST_NATIVE_BINARY": _native.__file__})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("joined native workers before finalization", result.stdout)
+        self.assertNotIn("Fatal Python error", result.stderr)
+
+    def test_shutdown_cancels_running_job_and_blocks_new_admission(self):
+        from remoteworker._native import host_worker_tick
+        host, executor, source, queue_type, calls = NativeHostTests().fixture()
+        with host.slots.lock, host.slots.job("A", executor) as job:
+            host.shutdown()
+            self.assertTrue(host.policy.stopping)
+            self.assertTrue(job.cancel.is_set())
+            self.assertEqual(calls, ["interrupt"])
+        host.queue.get = lambda **kwargs: self.fail("shutdown admitted pending work")
+        self.assertIs(host_worker_tick(host, executor, source, queue_type), executor)
+        self.assertEqual(host.slots.status()["jobs"], [])
+
+    def test_coordinator_shutdown_wakes_and_joins_without_waiting_reconcile_interval(self):
+        from types import SimpleNamespace
+        from remoteworker.preparation.coordinator import Coordinator
+        owner = Coordinator(SimpleNamespace(), {}, None)
+        owner.tick = lambda: None
+        owner.start()
+        owner.shutdown()
+        self.assertTrue(owner.stop.is_set())
+        self.assertFalse(owner.thread.is_alive())
+        self.assertTrue(owner.preparation_cancelled("A", "B", {}))

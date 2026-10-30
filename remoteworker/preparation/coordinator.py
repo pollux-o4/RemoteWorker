@@ -1,6 +1,7 @@
 """Bounded lookahead: next conditioning, then the current job's first VAE."""
 
 from .. import _native
+import atexit
 import logging
 from collections import deque
 from threading import Event, Lock, Thread
@@ -38,6 +39,7 @@ class Coordinator:
         self.events = deque(maxlen=30)
         self.done = deque(maxlen=128)
         self.active = None
+        self.thread = None
 
     def queue(self):
         return _native.prep_queue(self)
@@ -99,9 +101,21 @@ class Coordinator:
                 )
                 self.record("error", reason=str(exc)[:200])
 
-    def start(self):
+    def shutdown(self, *, wait=True):
+        self.stop.set()
         self.wake.set()
-        Thread(target=self.run, daemon=True, name="remote-preparation").start()
+        if wait and self.thread is not None:
+            from threading import current_thread
+            if self.thread is not current_thread():
+                self.thread.join()
+
+    def start(self):
+        if self.thread is not None:
+            return
+        self.wake.set()
+        self.thread = Thread(target=self.run, daemon=True, name="remote-preparation")
+        atexit.register(self.shutdown)
+        self.thread.start()
 
 # Native callback namespace and public compatibility exports.
 __all__ = ['pipeline', 'prefetch', 'prepare_vae', 'snapshot']

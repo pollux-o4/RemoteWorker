@@ -340,9 +340,15 @@ fn prep_prepare_vae(
             move |args: &Bound<'_, PyTuple>, _: Option<&Bound<'_, PyDict>>| -> PyResult<bool> {
                 let py = args.py();
                 let owner = owner_callback.bind(py);
-                Ok(!owner
-                    .call_method1("prompt_present", (current_callback.bind(py),))?
-                    .is_truthy()?
+                let stopping = owner
+                    .getattr("stop")
+                    .and_then(|stop| stop.call_method0("is_set"))
+                    .and_then(|value| value.is_truthy())
+                    .unwrap_or(false);
+                Ok(stopping
+                    || !owner
+                        .call_method1("prompt_present", (current_callback.bind(py),))?
+                        .is_truthy()?
                     || owner
                         .call_method1(
                             "next_clip_missing",
