@@ -69,3 +69,5 @@ sequenceDiagram
 - `tests/fixtures/pipeline_nodes`: CPU 전용 native 통합 fixture · `REMOTEWORKER_PIPELINE_FIXTURE=1` 명시 필요 · 운영 등록 제외
 - `tools/e2e_pipeline.py`: fixture 서버의 원본 큐·미리보기 ID·처리 중첩·MODEL 재사용·설정 변경·대기 작업 개별 취소
 - fixture 서버: 별도 base directory의 `custom_nodes/pipeline_nodes`에 fixture 연결·`RemoteWorker` 연결 · `CLUSTER_RUNTIME=amd`·`--cpu`·두 노드 디렉터리 whitelist
+
+- 프로세스 종료: 신규 입장 차단·진행 작업 취소·대기 wake·host/준비 worker join · Torch/CPython 최종화 이전 native frame 반환

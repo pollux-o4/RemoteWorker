@@ -51,3 +51,5 @@ flowchart TB
 - [공유 latent·영상·텐서](../contracts/shared-video.md)
 - [파일 결합·최종화](../contracts/file-finalization.md)
 - [C4 코드 라우팅](04-code.md)
+
+- 프로세스 종료: 신규 입장 차단·진행 작업 취소·대기 wake·host/준비 worker join · Torch/CPython 최종화 이전 native frame 반환
