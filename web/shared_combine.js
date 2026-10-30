@@ -1,69 +1,10 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { applyDelivery } from "./vae_delivery.js";
 
 const TYPE = "RemoteVAECombineMedia";
-const get = (node, name) => node.widgets?.find((widget) => widget.name === name);
-
-export function sharedSources(node) {
-    if ((node.comfyClass || node.type) !== "CreateVideo") return null;
-    const inputs = ["images", "audio"].map((name) => {
-        const slot = node.inputs?.find((input) => input.name === name);
-        const link = node.graph?.links?.[slot?.link];
-        return link ? node.graph.getNodeById(link.origin_id) : null;
-    });
-    if ((inputs[0]?.comfyClass || inputs[0]?.type) !== "RemoteVAEDecode") return null;
-    if (inputs[1] && (inputs[1].comfyClass || inputs[1].type) !== "RemoteVAEDecodeAudio") return null;
-    return inputs;
-}
-
-export function convertSharedVideo(node) {
-    const sources = sharedSources(node);
-    if (!sources) throw new Error("원격 VAE의 공유 모드 연결을 먼저 확인하세요.");
-    if (![undefined, "auto", 8, "8"].includes(get(node, "bit_depth")?.value)
-        || ![undefined, "sRGB"].includes(get(node, "color_space")?.value)
-        || node.inputs?.find((input) => input.name === "fps")?.link != null) {
-        throw new Error("공유 파일 결합은 sRGB 8비트와 고정 프레임 속도를 지원합니다. 현재 설정은 텐서 연결을 유지하세요.");
-    }
-    const graph = node.graph;
-    const replacement = globalThis.LiteGraph.createNode(TYPE);
-    if (!replacement) throw new Error("서버에 파일 결합 노드가 없습니다. 서버 업데이트 후 다시 연결하세요.");
-    const downstream = (node.outputs?.[0]?.links || []).map((id) => graph.links[id]).filter(Boolean)
-        .map((link) => [graph.getNodeById(link.target_id), link.target_slot]);
-    graph.beforeChange?.();
-    try {
-        replacement.pos = [...node.pos];
-        graph.add(replacement);
-        sources.forEach((source, index) => {
-            if (!source) return;
-            const mode = get(source, "output_mode");
-            mode.value = "shared";
-            mode.callback?.("shared");
-            if (index === 0 && get(node, "fps") && get(source, "fps")) get(source, "fps").value = get(node, "fps").value;
-            source.connect(1, replacement, index);
-        });
-        for (const [target, slot] of downstream) if (target) replacement.connect(0, target, slot);
-        graph.remove(node);
-        sources.filter(Boolean).forEach(applyDelivery);
-        graph.setDirtyCanvas?.(true, true);
-    } finally {
-        graph.afterChange?.();
-    }
-    return replacement;
-}
-
-function setupMigration(node) {
-    if ((node.comfyClass || node.type) !== "CreateVideo" || node._sharedMigration) return;
-    node._sharedMigration = true;
-    const button = node.addWidget("button", "공유 파일 연결로 전환", null, () => {
-        try { convertSharedVideo(node); }
-        catch (error) { app.extensionManager?.toast?.add({severity: "error", summary: "연결 확인 필요", detail: error.message, life: 6000}); }
-    }, { serialize: false });
-    button.serialize = false;
-    const update = () => { button.hidden = !sharedSources(node); };
-    const previous = node.onConnectionsChange;
-    node.onConnectionsChange = function () { previous?.apply(this, arguments); update(); };
-    update();
+// Cached frontend callbacks must not connect the decoder's inactive legacy STRING output.
+export function convertSharedVideo() {
+    throw new Error("파일 경로는 RemoteVAEVideo에서 연결하세요.");
 }
 
 function setupResult(node) {
@@ -108,6 +49,6 @@ if (typeof document !== "undefined" && !document.getElementById("remote-vae-deli
 }
 app.registerExtension({
     name: "RemoteWorker.SharedVideo",
-    nodeCreated(node) { setupMigration(node); setupResult(node); },
-    loadedGraphNode(node) { setupMigration(node); setupResult(node); },
+    nodeCreated(node) { setupResult(node); },
+    loadedGraphNode(node) { setupResult(node); },
 });

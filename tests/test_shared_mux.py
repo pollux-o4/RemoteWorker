@@ -85,25 +85,12 @@ class SharedMuxTests(unittest.TestCase):
             mux.run([sys.executable, '-c', 'import time; time.sleep(10)'], cancel)
         self.assertLess(time.monotonic() - started, 2)
 
-    def test_migration_preserves_save_video_branch_and_uses_file_outputs(self):
+    def test_legacy_conversion_cannot_replace_a_working_tensor_graph(self):
         run_web('''
             import assert from 'node:assert/strict';
             import {convertSharedVideo} from './custom/web/shared_combine.js';
-            const linked=[];
-            const source=(type)=>({type,widgets:[{name:'output_mode',value:'shared'},{name:'fps',value:24}],
-                connect:(out,target,slot)=>linked.push([type,out,target.type,slot])});
-            const video=source('RemoteVAEDecode'), audio=source('RemoteVAEDecodeAudio');
-            const save={type:'SaveVideo'};
-            const graph={links:{1:{origin_id:1},2:{origin_id:2},3:{target_id:4,target_slot:0}},
-                getNodeById:id=>({1:video,2:audio,4:save})[id],
-                add:node=>node.graph=graph,remove:node=>node.removed=true};
-            globalThis.LiteGraph={createNode:type=>({type,connect:(out,target,slot)=>linked.push([type,out,target.type,slot])})};
-            const old={type:'CreateVideo',graph,pos:[10,20],inputs:[{name:'images',link:1},{name:'audio',link:2}],
-                outputs:[{links:[3]}],widgets:[{name:'fps',value:30}]};
-            const node=convertSharedVideo(old);
-            assert.equal(old.removed,true);
-            assert.deepEqual(node.pos,[10,20]);
-            assert.deepEqual(linked,[['RemoteVAEDecode',1,'RemoteVAECombineMedia',0],
-                ['RemoteVAEDecodeAudio',1,'RemoteVAECombineMedia',1],['RemoteVAECombineMedia',0,'SaveVideo',0]]);
-            assert.equal(video.widgets[1].value,30);
+            let changed = false;
+            const old = {type:'CreateVideo', graph:{beforeChange(){changed=true;},remove(){changed=true;}}};
+            assert.throws(() => convertSharedVideo(old), /RemoteVAEVideo/);
+            assert.equal(changed, false);
         ''')
