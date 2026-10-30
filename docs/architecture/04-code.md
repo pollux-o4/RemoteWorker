@@ -66,6 +66,10 @@
 | 진입점 | 소스 |
 | --- | --- |
 | 선택 목록 | [remote_choices.js](../../web/remote_choices.js) |
+| 프로필 선택·상세 | [remote_profiles.js](../../web/remote_profiles.js) |
+| 프로필 편집·복구 | [remote_profile_dialog.js](../../web/remote_profile_dialog.js) |
+| 참조 소켓 | [remote_sockets.js](../../web/remote_sockets.js) |
+| 노드 표시 계약 | [node-experience.md](../contracts/node-experience.md) |
 | Qwen 선택 | [remote_qwen_image21.js](../../web/remote_qwen_image21.js) |
 | VAE 조작 | [remote_vae.js](../../web/remote_vae.js) |
 | VAE 전달 | [vae_delivery.js](../../web/vae_delivery.js) |
