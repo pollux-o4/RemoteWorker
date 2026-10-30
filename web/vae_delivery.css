@@ -1,13 +1,14 @@
-.remote-vae-delivery { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--border-color, #494949); border-radius: 8px; background: var(--comfy-input-bg, #252525); color: var(--input-text, #ddd); font: 12px/1.5 system-ui, sans-serif; overflow: hidden; }
-.remote-vae-delivery[hidden] { display: none; }
-.remote-vae-delivery p { margin: 0 0 8px; color: var(--descrip-text, #bbb); }
-.remote-vae-check { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-.remote-vae-check [role=status] { min-width: 0; overflow-wrap: anywhere; }
-.remote-vae-check [data-state=ready] { color: #8ed6ac; }
-.remote-vae-check [data-state=error] { color: #ffb2a8; }
-.remote-vae-check button { flex-shrink: 0; border: 1px solid var(--border-color, #666); border-radius: 5px; background: var(--comfy-menu-bg, #353535); color: inherit; padding: 5px 10px; cursor: pointer; font: inherit; }
-.remote-vae-delivery :is(button,a,input):focus-visible { outline: 2px solid #92c9ff; outline-offset: 2px; }
-.remote-vae-delivery [data-result] { display: grid; gap: 8px; }
-.remote-vae-delivery :is(video,audio) { width: 100%; max-height: 180px; margin-top: 10px; border-radius: 5px; }
-.remote-vae-delivery a { color: #9acbff; text-decoration: underline; }
-.remote-vae-delivery input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-color, #555); background: transparent; color: inherit; border-radius: 4px; padding: 5px; font: inherit; }
+/* Comfy DOM wrappers may impose full height; content measurement stays intrinsic. */
+.remote-vae-delivery {height:auto!important;min-height:0;box-sizing:border-box;width:100%;min-width:0;padding:10px 12px;border:1px solid var(--border-color,#494949);border-radius:8px;background:var(--comfy-input-bg,#252525);color:var(--input-text,#ddd);font:12px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}
+.remote-vae-delivery [hidden],.remote-vae-delivery[hidden] {display:none}
+.remote-vae-delivery p {margin:8px 0 0;color:var(--descrip-text,#bbb);overflow-wrap:anywhere}
+.remote-vae-check {display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;justify-content:space-between}
+.remote-vae-check [role=status] {min-width:0;flex:1 1 120px;overflow-wrap:anywhere}
+.remote-vae-check [data-state=ready] {color:#8ed6ac}
+.remote-vae-check [data-state=error] {color:#ffb2a8}
+.remote-vae-delivery :is(button,a,summary) {max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+.remote-vae-check button {min-height:32px;border:1px solid var(--border-color,#666);border-radius:5px;background:var(--comfy-menu-bg,#353535);color:inherit;padding:5px 10px;cursor:pointer;font:inherit;white-space:normal}
+.remote-vae-delivery summary {cursor:pointer;margin-top:8px;padding:4px 0;color:var(--descrip-text,#bbb)}
+.remote-vae-delivery :is(button,a,summary):focus-visible {outline:2px solid #92c9ff;outline-offset:2px}
+.remote-vae-delivery :is(video,audio) {display:block;width:100%;max-height:180px;margin-top:10px;border-radius:5px}
+.remote-vae-delivery a {display:inline-block;color:#9acbff;text-decoration:underline;min-height:32px;padding-top:6px}

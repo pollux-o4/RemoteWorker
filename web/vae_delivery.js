@@ -36,6 +36,40 @@ export function deliveryMode(node) {
     return value(node, "output_mode") || "tensor";
 }
 
+function resizeDelivery(node) {
+    if (!node.computeSize || !node.setSize || node._deliveryRemoved) return;
+    const width = node.size?.[0] || 320;
+    const height = node.computeSize()[1];
+    if (height !== node.size?.[1]) node.setSize([width, height]);
+    node.graph?.setDirtyCanvas?.(true, true);
+}
+
+function setDeliveryState(node, state, message, detail = "", next = "") {
+    const panel = node._deliveryPanel;
+    const status = panel?.querySelector("[role=status]");
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+    status.title = "";
+    const followup = panel.querySelector("[data-next]");
+    if (followup && followup !== status) { followup.textContent = next; followup.hidden = !next; }
+    const details = panel.querySelector("details");
+    const diagnostic = panel.querySelector("[data-diagnostic]");
+    if (details && details !== status) details.hidden = !detail;
+    if (diagnostic && diagnostic !== status) diagnostic.textContent = detail;
+    const button = panel.querySelector("button");
+    if (button && button !== status) button.textContent = state === "busy" ? "확인 취소" : state === "error" ? "다시 확인" : "연결 확인";
+    panel.setAttribute?.("aria-busy", String(state === "busy"));
+    resizeDelivery(node);
+}
+
+function invalidateDelivery(node, message = "공유 폴더 확인 필요") {
+    node._deliveryCheck = (node._deliveryCheck || 0) + 1;
+    node._deliveryController?.abort();
+    node._deliveryController = null;
+    setDeliveryState(node, "idle", message);
+}
+
 export function applyDelivery(node) {
     if (!TYPES.has(node.comfyClass || node.type)) return;
     const shared = deliveryMode(node) === "shared";
@@ -45,47 +79,55 @@ export function applyDelivery(node) {
         }
         if (["tile_size", "overlap", "temporal_size", "temporal_overlap"].includes(widget.name)) widget.hidden = !node.showAdvanced;
     }
-    if (node.outputs?.[0]) node.outputs[0].label = node.type === "RemoteVAEDecodeAudio" ? "오디오" : "이미지";
+    if (node.outputs?.[0]) node.outputs[0].label = (node.comfyClass || node.type) === "RemoteVAEDecodeAudio" ? "오디오" : "이미지";
     if (node.outputs?.[1]) node.outputs[1].label = "파일 경로 · 비활성";
-    const panel = node._deliveryPanel;
-    if (panel) {
-        panel.hidden = !shared;
-        panel.querySelector("[data-hint]").textContent = "공유 전송";
+    if (node._deliveryPanel) {
+        node._deliveryPanel.hidden = !shared;
+        if (!shared && node._deliveryController) invalidateDelivery(node);
     }
-    node.setSize?.([Math.max(node.size?.[0] || 0, 390), node.computeSize?.()[1] || 260]);
-    node.graph?.setDirtyCanvas?.(true, true);
+    resizeDelivery(node);
 }
 
 export async function checkDelivery(node) {
-    const status = node._deliveryPanel?.querySelector("[role=status]");
-    if (!status) return;
+    if (!node._deliveryPanel?.querySelector("[role=status]") || node._deliveryRemoved) return;
     const server_url = value(node, "server_url");
+    node._deliveryController?.abort();
     const generation = node._deliveryCheck = (node._deliveryCheck || 0) + 1;
-    status.textContent = "연결 확인 중…";
-    status.dataset.state = "busy";
+    const controller = new AbortController();
+    node._deliveryController = controller;
+    const current = () => generation === node._deliveryCheck && !node._deliveryRemoved && server_url === value(node, "server_url");
+    if (!server_url?.trim()) {
+        node._deliveryController = null;
+        setDeliveryState(node, "error", "서버 주소 입력 필요");
+        return;
+    }
+    setDeliveryState(node, "busy", "연결 확인 중");
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 10000);
     try {
         const response = await api.fetchApi("/remote-vae/preflight", {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server_url }),
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server_url }), signal: controller.signal,
         });
         const result = await response.json();
-        if (generation !== node._deliveryCheck || server_url !== value(node, "server_url")) return;
-        if (!response.ok) throw new Error(result.error || "공유 폴더 확인 실패");
-        status.textContent = "공유 폴더 연결됨";
-        status.title = result.root;
-        status.dataset.state = "ready";
+        if (!current()) return;
+        if (!response.ok) throw new Error(result?.error || "공유 폴더 확인 실패");
+        if (typeof result?.root !== "string" || !result.root.trim() || result.ready === false) {
+            throw new Error("공유 폴더 확인 결과가 없습니다. 다시 확인하세요.");
+        }
+        setDeliveryState(node, "ready", "공유 폴더 연결됨", result.root || "");
     } catch (error) {
-        if (generation !== node._deliveryCheck || server_url !== value(node, "server_url")) return;
-        status.textContent = "공유 폴더 연결 실패 · 다시 확인";
-        status.title = error.message;
-        status.dataset.state = "error";
+        if (!current()) return;
+        setDeliveryState(node, "error", timedOut ? "연결 응답 지연" : "공유 폴더 연결 실패", error.message);
+    } finally {
+        clearTimeout(timeout);
+        if (generation === node._deliveryCheck) node._deliveryController = null;
     }
 }
 
 function showResult(node, message) {
-    if (!message?.shared_transfer || !node._deliveryPanel) return;
-    const status = node._deliveryPanel.querySelector("[role=status]");
-    status.textContent = "수신 완료";
-    status.dataset.state = "ready";
+    if (!Array.isArray(message?.shared_transfer) || !message.shared_transfer.length || !node._deliveryPanel || node._deliveryRemoved) return;
+    invalidateDelivery(node);
+    setDeliveryState(node, "ready", "전송 완료", "", "저장은 후속 노드에서");
 }
 
 export function setupDelivery(node) {
@@ -95,30 +137,50 @@ export function setupDelivery(node) {
     if (node._deliverySetup) return applyDelivery(node);
     node._deliverySetup = true;
     if (typeof document !== "undefined" && node.addDOMWidget) {
-        const panel = document.createElement("section");
-        panel.className = "remote-vae-delivery";
-        panel.innerHTML = '<p data-hint></p><div class="remote-vae-check"><span role="status" aria-live="polite">공유 폴더 확인 필요</span><button type="button">연결 확인</button></div><div data-result></div>';
-        panel.querySelector("button").addEventListener("click", () => checkDelivery(node));
+        const panel = document.createElement("section"); panel.className = "remote-vae-delivery";
+        const row = document.createElement("div"); row.className = "remote-vae-check";
+        const status = document.createElement("span"); status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
+        status.textContent = "공유 폴더 확인 필요";
+        const button = document.createElement("button"); button.type = "button"; button.textContent = "연결 확인";
+        button.addEventListener("click", () => node._deliveryController
+            ? invalidateDelivery(node, "확인 취소됨") : checkDelivery(node));
+        row.append(status, button);
+        const next = document.createElement("p"); next.setAttribute("data-next", ""); next.hidden = true;
+        const details = document.createElement("details"); details.hidden = true;
+        const summary = document.createElement("summary"); summary.textContent = "상세";
+        const diagnostic = document.createElement("p"); diagnostic.setAttribute("data-diagnostic", "");
+        details.append(summary, diagnostic);
+        details.addEventListener("toggle", () => resizeDelivery(node));
+        panel.append(row, next, details);
         node._deliveryPanel = panel;
         const dom = node.addDOMWidget("remote_vae_delivery", "custom", panel, { serialize: false, hideOnZoom: false });
         dom.serialize = false;
-        dom.computeSize = (width) => [width, panel.hidden ? 0 : 100];
+        dom.computeSize = (width) => [width, panel.hidden ? 0 : Math.max(76, Math.ceil(Math.max(panel.scrollHeight || 0, panel.offsetHeight || 0)))];
+        if (typeof ResizeObserver !== "undefined") {
+            node._deliveryObserver = new ResizeObserver(() => resizeDelivery(node));
+            node._deliveryObserver.observe(panel);
+        }
     }
     for (const widget of node.widgets || []) {
         if (!["output_mode", "server_url"].includes(widget.name)) continue;
         const previous = widget.callback;
         widget.callback = function () {
             const result = previous?.apply(this, arguments);
-            if (widget.name === "server_url") {
-                const status = node._deliveryPanel?.querySelector("[role=status]");
-                if (status) { status.textContent = "공유 폴더 확인 필요"; status.dataset.state = ""; status.title = ""; }
-            }
+            if (widget.name === "server_url" || deliveryMode(node) !== "shared") invalidateDelivery(node);
             applyDelivery(node);
             return result;
         };
     }
     const previous = node.onExecuted;
     node.onExecuted = function (message) { previous?.apply(this, arguments); showResult(node, message); };
+    const removed = node.onRemoved;
+    node.onRemoved = function () {
+        node._deliveryRemoved = true;
+        node._deliveryCheck = (node._deliveryCheck || 0) + 1;
+        node._deliveryController?.abort(); node._deliveryController = null;
+        node._deliveryObserver?.disconnect();
+        return removed?.apply(this, arguments);
+    };
     const connections = node.onConnectionsChange;
     node.onConnectionsChange = function () {
         const result = connections?.apply(this, arguments);
