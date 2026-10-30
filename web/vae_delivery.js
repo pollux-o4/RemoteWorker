@@ -50,7 +50,7 @@ export function applyDelivery(node) {
     const panel = node._deliveryPanel;
     if (panel) {
         panel.hidden = !shared;
-        panel.querySelector("[data-hint]").textContent = "공유 임시 파일로 텐서 전달 · 미리보기·최종 저장은 후속 노드에서 처리";
+        panel.querySelector("[data-hint]").textContent = "공유 전송";
     }
     node.setSize?.([Math.max(node.size?.[0] || 0, 390), node.computeSize?.()[1] || 260]);
     node.graph?.setDirtyCanvas?.(true, true);
@@ -61,7 +61,7 @@ export async function checkDelivery(node) {
     if (!status) return;
     const server_url = value(node, "server_url");
     const generation = node._deliveryCheck = (node._deliveryCheck || 0) + 1;
-    status.textContent = "양쪽 공유 폴더 확인 중…";
+    status.textContent = "연결 확인 중…";
     status.dataset.state = "busy";
     try {
         const response = await api.fetchApi("/remote-vae/preflight", {
@@ -84,7 +84,7 @@ export async function checkDelivery(node) {
 function showResult(node, message) {
     if (!message?.shared_transfer || !node._deliveryPanel) return;
     const status = node._deliveryPanel.querySelector("[role=status]");
-    status.textContent = "텐서 수신 완료 · 임시 파일 정리됨";
+    status.textContent = "수신 완료";
     status.dataset.state = "ready";
 }
 
@@ -102,7 +102,7 @@ export function setupDelivery(node) {
         node._deliveryPanel = panel;
         const dom = node.addDOMWidget("remote_vae_delivery", "custom", panel, { serialize: false, hideOnZoom: false });
         dom.serialize = false;
-        dom.computeSize = (width) => [width, panel.hidden ? 0 : 100];
+        dom.computeSize = (width) => [width, panel.hidden ? 0 : 60];
     }
     for (const widget of node.widgets || []) {
         if (!["output_mode", "server_url"].includes(widget.name)) continue;

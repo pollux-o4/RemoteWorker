@@ -3,11 +3,11 @@ import {api} from '../../scripts/api.js';
 import {schedulerText} from './scheduler_view.js';
 
 const labels = {
-  conditioning: '다음 작업의 conditioning 계산 중',
-  conditioning_ready: '다음 conditioning 준비됨',
-  conditioning_consumed: '사전 계산 결과 사용됨',
-  vae: '현재 작업의 VAE 준비 중',
-  vae_ready: 'VAE 준비됨',
+  conditioning: '다음 인코딩',
+  conditioning_ready: '인코딩 완료',
+  conditioning_consumed: '준비 결과 사용',
+  vae: 'VAE 준비',
+  vae_ready: 'VAE 준비 완료',
   vae_deferred: '다음 CLIP으로 전환',
   skipped: '실행 시 처리',
   deferred: '처리 서버 대기',
@@ -38,14 +38,17 @@ async function showPreparation() {
   dialog.className = 'remote-preparation';
   dialog.setAttribute('aria-labelledby', 'remote-preparation-title');
   const title = text('h2', '자동 준비'); title.id = 'remote-preparation-title';
-  const close = text('button', '닫기'); close.onclick = () => dialog.close();
+  const close = text('button', '×'); close.setAttribute('aria-label', '닫기'); close.title = '닫기'; close.onclick = () => dialog.close();
   const header = document.createElement('header'); header.append(title, close);
   const status = text('p', '상태 확인 중…'); status.setAttribute('role', 'status');
   const schedule = document.createElement('section'); schedule.className='preparation-schedule'; schedule.setAttribute('aria-label','다음 작업 스케줄'); schedule.hidden=true;
   const content = document.createElement('div'); content.className = 'preparation-events';
   const hint = text('p', '대기 작업의 conditioning이 없으면 CLIP을 먼저 처리합니다.', 'preparation-hint');
   const refresh = text('button', '새로고침');
-  dialog.append(header, status, schedule, hint, content, refresh);
+  const details = document.createElement('details');
+  details.className = 'preparation-details';
+  details.append(text('summary', '상세'), hint, content);
+  dialog.append(header, status, schedule, details, refresh);
   let stopped = false, busy = false, pendingRequest = null;
   async function update() {
     if (stopped || busy || document.hidden) return;
@@ -58,12 +61,15 @@ async function showPreparation() {
       if (!response.ok) throw new Error('자동 준비 상태를 확인할 수 없습니다.');
       const data = await response.json();
       if (stopped) return;
-      status.textContent = data.active ? labels[data.active.state] || data.active.state : data.queue?.running ? '현재 작업 실행 중' : '자동 준비 켜짐 · 작업 대기';
+      status.textContent = data.active ? labels[data.active.state] || data.active.state : data.queue?.running ? '현재 작업 실행 중' : '대기';
       if (data.pipeline?.enabled) hint.textContent="원격 디코딩 대기 중 다음 작업을 처리합니다. 다음 conditioning을 먼저 준비합니다.";
       else if (Number.isFinite(data.scheduler?.vae_remaining_steps)) hint.textContent=`${data.scheduler.vae_remaining_steps} step이 남으면 VAE를 준비합니다. 대기 작업의 conditioning이 없으면 CLIP을 먼저 처리합니다.`;
       const timing=schedulerText(data.scheduler,data.pipeline);
       schedule.hidden=!timing;
-      if (timing) schedule.replaceChildren(text('strong',timing.title),text('p',timing.description),text('p',timing.timing));
+      if (timing) {
+        schedule.title = timing.description;
+        schedule.replaceChildren(text('strong',timing.title),text('p',timing.timing));
+      }
       content.replaceChildren(...data.events.slice(-8).reverse().map(event => {
         const row = document.createElement('section');
         row.append(text('strong', labels[event.state] || event.state));

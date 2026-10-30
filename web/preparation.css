@@ -26,3 +26,7 @@
 .remote-preparation .preparation-schedule p { margin:6px 0 0; line-height:1.5; font-size:12px; color:var(--descrip-text,#aaa); }
 
 .remote-preparation .preparation-hint,.remote-preparation .preparation-schedule p {word-break:keep-all;overflow-wrap:anywhere}
+
+.remote-preparation .preparation-details {min-height:0;overflow:auto}
+.remote-preparation summary {cursor:pointer;padding:8px 0;color:var(--descrip-text,#aaa)}
+.remote-preparation summary:focus-visible {outline:2px solid #b4d8d2;outline-offset:3px}

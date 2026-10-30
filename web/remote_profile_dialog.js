@@ -73,7 +73,7 @@ export async function openPromptProfileManager(node, profilesAdapter) {
         });
         dialog.setAttribute("aria-label", "Remote Prompt Enhancer 프로필 관리");
         const heading = document.createElement("h3");
-        heading.textContent = "Remote Prompt Enhancer 프로필 관리";
+        heading.textContent = "프로필";
         dialog.append(heading);
 
         const action = makeSelect(["create", "update", "delete"], "update");
