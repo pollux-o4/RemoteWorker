@@ -45,9 +45,11 @@ async function showPreparation() {
   const content = document.createElement('div'); content.className = 'preparation-events';
   const hint = text('p', '대기 작업의 conditioning이 없으면 CLIP을 먼저 처리합니다.', 'preparation-hint');
   const refresh = text('button', '새로고침');
+  const policy = text('p', '', 'preparation-hint');
+  policy.hidden = true;
   const details = document.createElement('details');
   details.className = 'preparation-details';
-  details.append(text('summary', '상세'), hint, content);
+  details.append(text('summary', '상세'), policy, hint, content);
   dialog.append(header, status, schedule, details, refresh);
   let stopped = false, busy = false, pendingRequest = null;
   async function update() {
@@ -66,8 +68,10 @@ async function showPreparation() {
       else if (Number.isFinite(data.scheduler?.vae_remaining_steps)) hint.textContent=`${data.scheduler.vae_remaining_steps} step이 남으면 VAE를 준비합니다. 대기 작업의 conditioning이 없으면 CLIP을 먼저 처리합니다.`;
       const timing=schedulerText(data.scheduler,data.pipeline);
       schedule.hidden=!timing;
+      policy.hidden=!timing?.description;
       if (timing) {
-        schedule.title = timing.description;
+        policy.textContent = timing.description;
+        policy.hidden = !timing.description;
         schedule.replaceChildren(text('strong',timing.title),text('p',timing.timing));
       }
       content.replaceChildren(...data.events.slice(-8).reverse().map(event => {

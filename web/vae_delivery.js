@@ -102,7 +102,7 @@ export function setupDelivery(node) {
         node._deliveryPanel = panel;
         const dom = node.addDOMWidget("remote_vae_delivery", "custom", panel, { serialize: false, hideOnZoom: false });
         dom.serialize = false;
-        dom.computeSize = (width) => [width, panel.hidden ? 0 : 60];
+        dom.computeSize = (width) => [width, panel.hidden ? 0 : 100];
     }
     for (const widget of node.widgets || []) {
         if (!["output_mode", "server_url"].includes(widget.name)) continue;
