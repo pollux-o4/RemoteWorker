@@ -118,6 +118,21 @@ class SchedulingPolicyTests(unittest.TestCase):
         self.assertEqual(calls, [("status", {"n": 1}, "client-A")])
         self.assertTrue(owner.wake.is_set())
 
+    def test_binary_preview_keeps_native_delivery_without_string_observer_error(self):
+        from threading import Event
+        from remoteworker.preparation.events import EventBridge
+
+        calls = []
+        server = SimpleNamespace(send_sync=lambda *args: calls.append(args))
+        owner = SimpleNamespace(wake=Event())
+        bridge = EventBridge(server, owner)
+        data = (1, b"preview bytes")
+        server.send_sync(4, data, "client-A")
+        self.assertEqual(calls, [(4, data, "client-A")])
+        self.assertIs(calls[0][1], data)
+        self.assertEqual(bridge.errors, 0)
+        self.assertFalse(owner.wake.is_set())
+
     def make_coordinator(self, steps):
         from remoteworker.preparation.coordinator import Coordinator
         from remoteworker.preparation.scheduler import Scheduler

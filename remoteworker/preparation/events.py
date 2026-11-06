@@ -26,6 +26,8 @@ class EventBridge:
         server.send_sync = send
 
     def observe(self, event, data):
+        if not isinstance(event, str):
+            return
         from .._native import prep_observe_event
         return prep_observe_event(self.coordinator, event, data, _progress_registry)
 

@@ -30,6 +30,7 @@ flowchart TB
 - Python 예외의 FFI 전달 · 실패 시 해당 prompt 취소 · 업로드 성공분의 요청별 정리
 - 공유 파일: no-follow dirfd·고정 writer FD → 파일 fsync → rename → 상위 디렉터리 fsync → receipt 검증 → 입력 삭제
 - native 바이너리 필수 · Python 핵심 로직 대체 구현 없음
+- 이벤트 adapter: 원래 Comfy 전송 선행·문자열 상태의 native 관찰·binary 미리보기 분리 · [C4](04-code.md#준비파이프라인)
 
 - 프로세스 종료: 신규 입장 차단·진행 작업 취소·대기 wake·host/준비 worker join · Torch/CPython 최종화 이전 native frame 반환
 
