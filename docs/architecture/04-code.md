@@ -10,7 +10,7 @@
 | artifact·완료 이력 | [artifacts.rs](../../rust/src/artifacts.rs) |
 | 요청 수명주기 | [request.rs](../../rust/src/request.rs) |
 | byte 캐시·일회 handoff | [cache.rs](../../rust/src/cache.rs) |
-| 모델별 workflow | [workflows.rs](../../rust/src/workflows.rs) |
+| 모델별 workflow · 조건 저장 `SaveRemoteConditioning` · UI 필드 `conditioning` | [workflows.rs](../../rust/src/workflows.rs) |
 | 인코더 정책·실행 | [encoder_policy.rs](../../rust/src/encoder_policy.rs) · [encoder_runtime.rs](../../rust/src/encoder_runtime.rs) |
 | 프로필 | [profiles.rs](../../rust/src/profiles.rs) |
 | 큐 그래프 | [graph.rs](../../rust/src/graph.rs) |

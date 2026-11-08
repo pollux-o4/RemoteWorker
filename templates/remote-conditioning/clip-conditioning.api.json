@@ -12,7 +12,7 @@
     "inputs": {"clip": ["clip", 0], "text": "__REMOTE_CONDITIONING_TEXT__"}
   },
   "save": {
-    "class_type": "SaveConditioning",
+    "class_type": "SaveRemoteConditioning",
     "inputs": {
       "conditioning": ["encode", 0],
       "filename_prefix": "remote-conditioning/__REMOTE_CONDITIONING_REQUEST_ID__/cond"

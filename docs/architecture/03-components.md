@@ -26,6 +26,7 @@ flowchart TB
 ## 실행·실패 계약
 
 - 호출 측·peer 각각의 ComfyUI 프로세스 내부 native 모듈 로드
+- 조건 전송: 전용 저장 노드·요청별 artifact 필드 사용, ComfyUI 기본 저장 노드와 분리
 - 검증된 ID·정책·미디어 종류·슬롯 단계의 Rust 타입 소유 · 외부 입력의 런타임 검증 후 구성
 - Python 예외의 FFI 전달 · 실패 시 해당 prompt 취소 · 업로드 성공분의 요청별 정리
 - 공유 파일 원자 발행·검증: [shared-video](../contracts/shared-video.md)

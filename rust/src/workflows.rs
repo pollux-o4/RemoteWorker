@@ -252,7 +252,7 @@ fn conditioning(v: &Value, template: Option<Value>) -> PyResult<Value> {
             "Remote Conditioning image references must use validated temp uploads",
         ));
     }
-    let mut graph = json!({"clip":clip_node,"encode":node("Krea2EditGroundedEncode",json!({"clip":link("clip",0),"prompt":prompt,"image":link("image_1",0),"grounding_px":v["grounding_px"],"system_prompt":v["system_prompt"]})),"save":node("SaveConditioning",json!({"conditioning":link("encode",0),"filename_prefix":format!("remote-conditioning/{request}/cond")}))});
+    let mut graph = json!({"clip":clip_node,"encode":node("Krea2EditGroundedEncode",json!({"clip":link("clip",0),"prompt":prompt,"image":link("image_1",0),"grounding_px":v["grounding_px"],"system_prompt":v["system_prompt"]})),"save":node("SaveRemoteConditioning",json!({"conditioning":link("encode",0),"filename_prefix":format!("remote-conditioning/{request}/cond")}))});
     for (i, r) in images.iter().enumerate() {
         graph[format!("image_{}", i + 1)] = node("LoadImage", json!({"image":r}));
     }

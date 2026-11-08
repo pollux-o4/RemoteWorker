@@ -4,7 +4,9 @@ from __future__ import annotations
 
 # Rust runtime callback exports.
 import uuid as uuid
-from ..core.artifacts import CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
+from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT
+
+CONDITIONING_ARTIFACT = REMOTE_CONDITIONING_ARTIFACT
 from ..core.execution import (
     RequestInputs as RequestInputs,
     completed_artifacts as completed_artifacts,
