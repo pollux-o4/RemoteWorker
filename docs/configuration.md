@@ -27,4 +27,4 @@
 
 `prompt_profile`: 전체 프로필 필드 — `id`, `description`, `clip_name`, `clip_type`, `device`, `max_length`, `system_prompt`, `accepted_media`.
 
-적용 시점: Python 모듈 import. 재적용 경계: ComfyUI 프로세스 재시작. 브라우저 초기 조회 주소: 백엔드 노드 스키마. peer 관리 프로필: 기존 ComfyUI 사용자 디렉터리 레지스트리; 기본값 설정과 별도.
+적용 시점: Python 모듈 import. 재적용 경계: ComfyUI 프로세스 재시작. 브라우저 초기 조회 주소: 백엔드 노드 스키마. peer 관리 프로필: 기존 ComfyUI 사용자 디렉터리 레지스트리.

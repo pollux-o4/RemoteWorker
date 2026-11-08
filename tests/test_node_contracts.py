@@ -4,11 +4,14 @@ import importlib.util
 import inspect
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import remoteworker.conditioning.service as peer_remote_conditioning
 import remoteworker.conditioning.service as workflow_remote_conditioning
+import remoteworker.integration.artifact_io as conditioning_artifact_io
 import remoteworker.integration.vae_selector as vae_remote_vae_selector
 from remoteworker.conditioning.workflow import extract_artifact_path
 from remoteworker.core.protocol import build_release_cleanup_node
@@ -143,6 +146,7 @@ class ClipSelectionTemplateTests(unittest.TestCase):
         self.assertEqual("lumina2", workflow["clip"]["inputs"]["type"])
         self.assertEqual("cpu", workflow["clip"]["inputs"]["device"])
         self.assertEqual("a glass bird", workflow["encode"]["inputs"]["text"])
+        self.assertEqual("SaveRemoteConditioning", workflow["save"]["class_type"])
         self.assertEqual(["encode", 0], workflow["save"]["inputs"]["conditioning"])
         self.assertEqual(
             "remote-conditioning/request-42/cond",
@@ -198,7 +202,37 @@ class ClipSelectionTemplateTests(unittest.TestCase):
         history = {
             "prompt-99": {
                 "status": {"status_str": "success"},
-                "outputs": {"save": {"text": ["remote-conditioning/request-42/cond_00001_.cond"]}},
+                "outputs": {"save": {"conditioning": ["remote-conditioning/request-42/cond_00001_.cond"]}},
+            }
+        }
+        self.assertEqual(
+            "remote-conditioning/request-42/cond_00001_.cond",
+            extract_artifact_path(history, "prompt-99", "request-42"),
+        )
+
+    def test_remote_conditioning_writer_ui_output_is_extracted_from_history(self) -> None:
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "output"
+            output.mkdir()
+            paths = SimpleNamespace(
+                get_output_directory=lambda: str(output),
+                get_save_image_path=lambda prefix, _output: (
+                    str(output / Path(prefix).parent),
+                    Path(prefix).name,
+                    1,
+                    str(Path(prefix).parent),
+                    "",
+                ),
+            )
+            with patch.object(conditioning_artifact_io, "folder_paths", paths):
+                saved = conditioning_artifact_io.SaveRemoteConditioning().save([["conditioning"]], "remote-conditioning/request-42/cond")
+
+        history = {
+            "prompt-99": {
+                "status": {"status_str": "success"},
+                "outputs": {"save": saved["ui"]},
             }
         }
         self.assertEqual(

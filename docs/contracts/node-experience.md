@@ -3,9 +3,9 @@
 ## 범위·근거
 
 - 사용자: ComfyUI 워크플로 작성자 · 원격 서버·모델·프로필 선택, 생성·전송 상태 확인
-- 근거: 텍스트 최소화 요청 · [선택 UI](../../web/remote_choices.js) · [프로필 UI](../../web/remote_profiles.js) · [전송 UI](../../web/vae_delivery.js)
+- 근거: [선택 UI](../../web/remote_choices.js) · [프로필 UI](../../web/remote_profiles.js) · [전송 UI](../../web/vae_delivery.js)
 - 유지: 노드 ID·입출력·직렬화 위젯 순서·실행 정책 · 사용자 제목·선택·편집 초안
-- 검증 경계: 코드·DOM 계약·실제 개발 UI 관찰 · 사용자 조사·접근성 적합성 인증 제외
+- 검증 경계: 코드·DOM 계약·실제 개발 UI 관찰
 
 ## 작업·상태
 

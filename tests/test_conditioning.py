@@ -42,7 +42,7 @@ class execution_FakeComfyApi:
         return {
             "prompt-99": {
                 "status": {"status_str": "success"},
-                "outputs": {"save": {"text": ["remote-conditioning/request-42/cond_00001_.cond"]}},
+                "outputs": {"save": {"conditioning": ["remote-conditioning/request-42/cond_00001_.cond"]}},
             }
         }
 
@@ -296,6 +296,7 @@ class OrderedImageAttachmentTests(unittest.TestCase):
         self.assertEqual(["image_2", 0], workflow["encode"]["inputs"]["image_b"])
         self.assertEqual(1024, workflow["encode"]["inputs"]["grounding_px"])
         self.assertEqual("identity detail", workflow["encode"]["inputs"]["system_prompt"])
+        self.assertEqual("SaveRemoteConditioning", workflow["save"]["class_type"])
         self.assertEqual(["save", 0], workflow["cleanup"]["inputs"]["anything"])
         self.assertFalse(workflow["cleanup"]["inputs"]["reset_execution_cache"])
 
@@ -368,7 +369,7 @@ class OrderedImageAttachmentTests(unittest.TestCase):
                 return {
                     "prompt-9": {
                         "status": {"status_str": "success"},
-                        "outputs": {"save": {"text": ["remote-conditioning/request-9/cond_00001_.cond"]}},
+                        "outputs": {"save": {"conditioning": ["remote-conditioning/request-9/cond_00001_.cond"]}},
                     }
                 }
 

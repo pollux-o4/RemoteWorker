@@ -133,7 +133,7 @@ class HttpComfyApiTests(unittest.TestCase):
                     {
                         "prompt-99": {
                             "status": {"status_str": "success"},
-                            "outputs": {"save": {"text": ["remote-conditioning/request-42/cond_00001_.cond"]}},
+                            "outputs": {"save": {"conditioning": ["remote-conditioning/request-42/cond_00001_.cond"]}},
                         }
                     }
                 ).encode("utf-8")

@@ -8,7 +8,7 @@ import hashlib
 import uuid as uuid
 from typing import Any
 
-from ..core.artifacts import CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
+from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT
 from ..core.execution import (
     RequestInputs as RequestInputs,
 )
@@ -51,6 +51,8 @@ from .workflow import (
 from .workflow import (
     validate_strategy_capability as validate_strategy_capability,
 )
+
+CONDITIONING_ARTIFACT = REMOTE_CONDITIONING_ARTIFACT
 
 _CONDITIONING_BYTES_CACHE = ByteResultCache(
     max_entries=8,

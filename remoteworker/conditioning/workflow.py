@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from .._native import workflow_build
-from ..core.artifacts import CONDITIONING_ARTIFACT, extract_artifact_paths
+from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
+from ..core.artifacts import extract_artifact_paths
 from ..core.protocol import (
     DEFAULT_PEER_MEMORY_POLICY,
     ClipSelection,

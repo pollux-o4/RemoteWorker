@@ -10,7 +10,7 @@
 | artifact·완료 이력 | [artifacts.rs](../../rust/src/artifacts.rs) |
 | 요청 수명주기 | [request.rs](../../rust/src/request.rs) |
 | byte 캐시·일회 handoff | [cache.rs](../../rust/src/cache.rs) |
-| 모델별 workflow | [workflows.rs](../../rust/src/workflows.rs) |
+| 모델별 workflow · 조건 저장 `SaveRemoteConditioning` · UI 필드 `conditioning` | [workflows.rs](../../rust/src/workflows.rs) |
 | 인코더 정책·실행 | [encoder_policy.rs](../../rust/src/encoder_policy.rs) · [encoder_runtime.rs](../../rust/src/encoder_runtime.rs) |
 | 프로필 | [profiles.rs](../../rust/src/profiles.rs) |
 | 큐 그래프 | [graph.rs](../../rust/src/graph.rs) |
@@ -41,7 +41,7 @@
 | --- | --- |
 | 역할 발견 | [capabilities.py](../../remoteworker/preparation/capabilities.py) |
 | 준비 조정 | [coordinator.py](../../remoteworker/preparation/coordinator.py) |
-| Comfy 이벤트 관찰 | [events.py](../../remoteworker/preparation/events.py) · `EventBridge.observe`: 문자열 상태만 native 전달·정수형 미리보기의 원래 전송/클라이언트 라우팅 보존 |
+| Comfy 이벤트 관찰 | [events.py](../../remoteworker/preparation/events.py) · `EventBridge` |
 | native worker 연결 | [host.py](../../remoteworker/pipeline/host.py) |
 | 실행 슬롯 | [slots.py](../../remoteworker/pipeline/slots.py) |
 | MODEL/LoRA 재사용 | [reuse.py](../../remoteworker/pipeline/reuse.py) |
@@ -78,4 +78,4 @@
 
 ## 다른 저장소
 
-- [GenRel C4](../../../../docs/아키텍처/04-code.md)
+- GenRel C4: GenRel `docs/아키텍처/04-code.md`
