@@ -2,46 +2,60 @@
 
 from __future__ import annotations
 
-# Rust runtime callback exports.
-from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT
-
-CONDITIONING_ARTIFACT = REMOTE_CONDITIONING_ARTIFACT
+import hashlib
 import uuid as uuid
-from ..core.execution import (
-    RequestInputs as RequestInputs,
-    completed_artifacts as completed_artifacts,
-)
-from ..core.transport import HttpComfyApi as HttpComfyApi
-from .common import (
-    LATENT_ARTIFACT as LATENT_ARTIFACT,
-    decode_remote_outputs as decode_remote_outputs,
-    get_cached_minimax_outputs as get_cached_minimax_outputs,
-    put_cached_minimax_outputs as put_cached_minimax_outputs,
-    resolve_vae_name as resolve_vae_name,
-    validate_peer_inputs as validate_peer_inputs,
-    validate_release_cleanup_capability as validate_release_cleanup_capability,
-)
+from typing import Any
 
 from .._native import workflow_build
 
-from ..preparation.capabilities import Preparation
-
-import hashlib
-from typing import Any
-
+# Rust runtime callback exports.
+from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT
+from ..core.execution import (
+    RequestInputs as RequestInputs,
+)
+from ..core.execution import (
+    completed_artifacts as completed_artifacts,
+)
 from ..core.media import encode_image_frame_png
 from ..core.protocol import CACHE_POLICIES, DEFAULT_CACHE_POLICY, ClipSelection
+from ..core.transport import HttpComfyApi as HttpComfyApi
 from ..defaults import DEFAULT_SERVER_URL
+from ..preparation.capabilities import Preparation
 from .common import (
     DEFAULT_PEER_MEMORY_POLICY,
     MINIMAX_CLIP_CHOICES,
     MINIMAX_VIDEO_VAE_CHOICES,
     PEER_MEMORY_POLICIES,
     VAE_NAME_OVERRIDE_SOCKET,
-    validate_cache_policy as validate_cache_policy,
     validate_minimax_loader_inputs,
     validate_peer_memory_policy,
 )
+from .common import (
+    LATENT_ARTIFACT as LATENT_ARTIFACT,
+)
+from .common import (
+    decode_remote_outputs as decode_remote_outputs,
+)
+from .common import (
+    get_cached_minimax_outputs as get_cached_minimax_outputs,
+)
+from .common import (
+    put_cached_minimax_outputs as put_cached_minimax_outputs,
+)
+from .common import (
+    resolve_vae_name as resolve_vae_name,
+)
+from .common import (
+    validate_cache_policy as validate_cache_policy,
+)
+from .common import (
+    validate_peer_inputs as validate_peer_inputs,
+)
+from .common import (
+    validate_release_cleanup_capability as validate_release_cleanup_capability,
+)
+
+CONDITIONING_ARTIFACT = REMOTE_CONDITIONING_ARTIFACT
 
 
 def _single_frame(image: Any, name: str) -> Any:
@@ -53,9 +67,7 @@ def _single_frame(image: Any, name: str) -> Any:
 def _frame_fingerprint(image: Any | None, name: str) -> str | None:
     if image is None:
         return None
-    return hashlib.sha256(
-        encode_image_frame_png(_single_frame(image, name))
-    ).hexdigest()
+    return hashlib.sha256(encode_image_frame_png(_single_frame(image, name))).hexdigest()
 
 
 def _i2v_cache_key(
@@ -121,8 +133,9 @@ def execute(
     deserialize: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> tuple[Any, Any]:
-    from .._native import encoder_execute_native
     import sys
+
+    from .._native import encoder_execute_native
 
     return encoder_execute_native("minimax-i2v", sys.modules[__name__], locals())
 
@@ -197,9 +210,7 @@ class RemoteMiniMaxH3ImageToVideo:
         )
 
     @classmethod
-    def IS_CHANGED(
-        cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any
-    ) -> float:
+    def IS_CHANGED(cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any) -> float:
         from .._native import cache_fingerprint_native
 
         return cache_fingerprint_native(cache_policy, "Remote MiniMax H3")
@@ -224,13 +235,12 @@ class RemoteMiniMaxH3ImageToVideo:
         unique_id=None,
         extra_pnginfo=None,
     ):
-        from .._native import encoder_run_native
         import sys
+
+        from .._native import encoder_run_native
 
         return encoder_run_native("minimax-i2v", sys.modules[__name__], locals())
 
 
 NODE_CLASS_MAPPINGS = {"RemoteMiniMaxH3ImageToVideo": RemoteMiniMaxH3ImageToVideo}
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RemoteMiniMaxH3ImageToVideo": "Remote MiniMax H3 Image to Video"
-}
+NODE_DISPLAY_NAME_MAPPINGS = {"RemoteMiniMaxH3ImageToVideo": "Remote MiniMax H3 Image to Video"}

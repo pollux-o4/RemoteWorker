@@ -1,19 +1,19 @@
 """Load a packaged native extension when the checkout has no local build."""
+
+import sys
 from importlib import metadata, util
 from pathlib import Path
-import sys
 
 try:
     distribution = metadata.distribution("remoteworker-native")
 except metadata.PackageNotFoundError as error:
-    raise ImportError(
-        "RemoteWorker Rust extension missing: run this runtime's Python with install.py, "
-        "or install its remoteworker-native wheel."
-    ) from error
+    raise ImportError("RemoteWorker Rust extension missing: run this runtime's Python with install.py, or install its remoteworker-native wheel.") from error
 
-candidates = [distribution.locate_file(file) for file in distribution.files or ()
-              if file.parts[:1] == ("remoteworker",) and file.name.startswith("_native.")
-              and file.name.endswith((".so", ".pyd"))]
+candidates = [
+    distribution.locate_file(file)
+    for file in distribution.files or ()
+    if file.parts[:1] == ("remoteworker",) and file.name.startswith("_native.") and file.name.endswith((".so", ".pyd"))
+]
 if len(candidates) != 1:
     raise ImportError("RemoteWorker wheel does not contain exactly one native extension")
 location = Path(candidates[0])

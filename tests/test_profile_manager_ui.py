@@ -1,9 +1,9 @@
 """Profile manager state/recovery contracts with mocked DOM and HTTP effects."""
 
-from pathlib import Path
 import shutil
 import subprocess
 import unittest
+from pathlib import Path
 
 from web_harness import run_web
 

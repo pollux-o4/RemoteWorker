@@ -7,6 +7,7 @@ from pathlib import Path
 
 import torch
 
+import remoteworker.core.artifacts as artifact_remote_artifacts
 import remoteworker.integration.artifact_io as io_conditioning_io
 
 
@@ -136,9 +137,6 @@ class ConditioningIoTests(unittest.TestCase):
         )
         with self.assertRaises(FileNotFoundError):
             io_conditioning_io.LoadConditioning().load(filename)
-
-
-import remoteworker.core.artifacts as artifact_remote_artifacts
 
 
 class RemoteArtifactTests(unittest.TestCase):

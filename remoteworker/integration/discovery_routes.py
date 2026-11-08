@@ -1,13 +1,13 @@
 """Same-origin ComfyUI route for Remote Conditioning CLIP capabilities."""
 
 from __future__ import annotations
-from .. import _native
 
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .. import _native
 from ..core.transport import HttpComfyApi
 
 ROUTE_PATH = "/remote-conditioning/clip-loader-options"
@@ -38,6 +38,7 @@ def create_clip_loader_options_handler(
     json_response: Callable[..., Any] | None = None,
 ) -> Callable[[Any], Any]:
     """Create the POST handler with injectable HTTP boundaries for unit tests."""
+
     def respond(payload: Any, *, status: int = 200) -> Any:
         if json_response is not None:
             return json_response(payload, status=status)
@@ -69,6 +70,7 @@ def create_vae_loader_options_handler(
     json_response: Callable[..., Any] | None = None,
 ) -> Callable[[Any], Any]:
     """Create the POST handler for peer VAELoader choices."""
+
     def respond(payload: Any, *, status: int = 200) -> Any:
         if json_response is not None:
             return json_response(payload, status=status)
@@ -98,11 +100,14 @@ def create_vae_loader_options_handler(
 def discard_request_inputs(request_id: str, temp_directory: str | Path | None = None) -> bool:
     if temp_directory is None:
         import folder_paths
+
         temp_directory = folder_paths.get_temp_directory()
     return _native.discard_request_inputs_native(request_id, temp_directory)
 
 
-def create_discard_inputs_handler(json_response: Callable[..., Any] | None = None) -> Callable[[Any], Any]:
+def create_discard_inputs_handler(
+    json_response: Callable[..., Any] | None = None,
+) -> Callable[[Any], Any]:
     def respond(payload: Any, *, status: int = 200) -> Any:
         if json_response is not None:
             return json_response(payload, status=status)
@@ -136,8 +141,6 @@ def register_routes(prompt_server: Any | None = None) -> bool:
     prompt_server.instance.routes.post(VAE_ROUTE_PATH)(create_vae_loader_options_handler())
     prompt_server.instance.routes.post(DISCARD_INPUTS_ROUTE_PATH)(create_discard_inputs_handler())
     return True
-
-
 
 
 __all__ = [

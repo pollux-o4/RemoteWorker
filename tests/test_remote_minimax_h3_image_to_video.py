@@ -22,14 +22,28 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
         self.assertEqual(("IMAGE",), schema["optional"]["first_frame"])
         self.assertEqual(("IMAGE",), schema["optional"]["last_frame"])
         self.assertEqual(("*", {"forceInput": True}), schema["optional"]["vae_name_override"])
-        self.assertEqual({"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"}, schema["hidden"])
+        self.assertEqual(
+            {"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"},
+            schema["hidden"],
+        )
         self.assertNotIn("peer_memory_policy", schema["required"])
-        self.assertEqual(["release_after_result", "keep"], schema["optional"]["peer_memory_policy"][0])
-        self.assertEqual(["reuse_same_inputs", "always_refresh"], schema["optional"]["cache_policy"][0])
+        self.assertEqual(
+            ["release_after_result", "keep"],
+            schema["optional"]["peer_memory_policy"][0],
+        )
+        self.assertEqual(
+            ["reuse_same_inputs", "always_refresh"],
+            schema["optional"]["cache_policy"][0],
+        )
         self.assertNotIn("ref_image_count", schema["required"])
 
-    def test_cache_policy_uses_native_signature_by_default_and_nan_only_for_refresh(self) -> None:
-        self.assertEqual(0, remote_i2v.RemoteMiniMaxH3ImageToVideo.IS_CHANGED(cache_policy="reuse_same_inputs"))
+    def test_cache_policy_uses_native_signature_by_default_and_nan_only_for_refresh(
+        self,
+    ) -> None:
+        self.assertEqual(
+            0,
+            remote_i2v.RemoteMiniMaxH3ImageToVideo.IS_CHANGED(cache_policy="reuse_same_inputs"),
+        )
         self.assertTrue(math.isnan(remote_i2v.RemoteMiniMaxH3ImageToVideo.IS_CHANGED(cache_policy="always_refresh")))
 
     def test_validate_inputs_accepts_remote_discovered_model_aliases(self) -> None:
@@ -66,8 +80,14 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
     def test_workflow_maps_optional_frames_to_exact_native_input_names(self) -> None:
         workflow = remote_i2v.build_workflow(
             clip=remote_i2v.ClipSelection("minimax.safetensors", "minimax", "default"),
-            vae_name="video.vae", prompt="a moving scene", width=1344, height=768, length=124,
-            first_frame="remote/request/first.png [temp]", last_frame="remote/request/last.png [temp]", request_id="request-1",
+            vae_name="video.vae",
+            prompt="a moving scene",
+            width=1344,
+            height=768,
+            length=124,
+            first_frame="remote/request/first.png [temp]",
+            last_frame="remote/request/last.png [temp]",
+            request_id="request-1",
         )
         inputs = workflow["encode"]["inputs"]
         self.assertEqual("MiniMaxH3ImageToVideo", workflow["encode"]["class_type"])
@@ -84,8 +104,15 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
     def test_keep_policy_does_not_add_cleanup_or_dependency_edge(self) -> None:
         workflow = remote_i2v.build_workflow(
             clip=remote_i2v.ClipSelection("minimax.safetensors", "minimax", "default"),
-            vae_name="video.vae", prompt="a moving scene", width=1344, height=768, length=124,
-            first_frame=None, last_frame=None, request_id="request-1", peer_memory_policy="keep",
+            vae_name="video.vae",
+            prompt="a moving scene",
+            width=1344,
+            height=768,
+            length=124,
+            first_frame=None,
+            last_frame=None,
+            request_id="request-1",
+            peer_memory_policy="keep",
         )
 
         self.assertNotIn("cleanup", workflow)
@@ -102,7 +129,11 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
                 if name == "VRAMCleanup":
                     return {
                         "input": {
-                            "required": {"offload_model": [], "offload_cache": [], "reset_execution_cache": []},
+                            "required": {
+                                "offload_model": [],
+                                "offload_cache": [],
+                                "reset_execution_cache": [],
+                            },
                             "optional": {"anything": ["*"]},
                         },
                         "output": ["*"],
@@ -112,7 +143,11 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
                 return {"output": ["CONDITIONING", "LATENT"]}
 
             def clip_loader_options(self):
-                return {"clip_name": ["minimax.safetensors"], "clip_type": ["minimax"], "device": ["default"]}
+                return {
+                    "clip_name": ["minimax.safetensors"],
+                    "clip_type": ["minimax"],
+                    "device": ["default"],
+                }
 
             def upload_file(self, **kwargs):
                 self.events.append(("file", kwargs["filename"], kwargs["content_type"]))
@@ -123,10 +158,15 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
                 return "prompt-1"
 
             def wait_for_history(self, _prompt_id):
-                return {"prompt-1": {"status": {"status_str": "success"}, "outputs": {
-                    "save": {"conditioning": ["remote-conditioning/request-1/cond_00001_.cond"]},
-                    "save_latent": {"latents": ["remote-conditioning/request-1/latent_00001_.latent"]},
-                }}}
+                return {
+                    "prompt-1": {
+                        "status": {"status_str": "success"},
+                        "outputs": {
+                            "save": {"conditioning": ["remote-conditioning/request-1/cond_00001_.cond"]},
+                            "save_latent": {"latents": ["remote-conditioning/request-1/latent_00001_.latent"]},
+                        },
+                    }
+                }
 
             def download_artifact(self, path):
                 return path.encode()
@@ -139,19 +179,37 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
         with patch.object(remote_i2v, "encode_image_frame_png", return_value=b"png"):
             result = remote_i2v.execute(
                 clip=remote_i2v.ClipSelection("minimax.safetensors", "minimax", "default"),
-                vae_name="video.vae", prompt="a moving scene", width=1344, height=768, length=124,
-                first_frame=FakeImage(), last_frame=None, request_id="request-1", api=api,
+                vae_name="video.vae",
+                prompt="a moving scene",
+                width=1344,
+                height=768,
+                length=124,
+                first_frame=FakeImage(),
+                last_frame=None,
+                request_id="request-1",
+                api=api,
                 deserialize=lambda cond, latent: (cond, latent),
             )
 
-        self.assertEqual((b"remote-conditioning/request-1/cond_00001_.cond", b"remote-conditioning/request-1/latent_00001_.latent"), result)
+        self.assertEqual(
+            (
+                b"remote-conditioning/request-1/cond_00001_.cond",
+                b"remote-conditioning/request-1/latent_00001_.latent",
+            ),
+            result,
+        )
         self.assertEqual(("capability", "MiniMaxH3ImageToVideo"), api.events[0])
         self.assertEqual(("capability", "VRAMCleanup"), api.events[1])
-        self.assertEqual([("file", "first_frame.png", "image/png")], [event for event in api.events if event[0] == "file"])
+        self.assertEqual(
+            [("file", "first_frame.png", "image/png")],
+            [event for event in api.events if event[0] == "file"],
+        )
         self.assertNotIn("last_frame", api.workflow["encode"]["inputs"])
         self.assertEqual(("discard", "request-1"), api.events[-1])
 
-    def test_connected_vae_name_uses_primary_widget_without_override_socket(self) -> None:
+    def test_connected_vae_name_uses_primary_widget_without_override_socket(
+        self,
+    ) -> None:
         node = remote_i2v.RemoteMiniMaxH3ImageToVideo()
         with patch.object(remote_i2v, "execute", return_value=("cond", "latent")) as execute:
             result = node.run(
@@ -178,7 +236,11 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
 
         with (
             patch.object(remote_i2v, "execute", side_effect=fake_execute),
-            patch.object(remote_i2v, "decode_remote_outputs", side_effect=lambda cond, latent: (cond, {"samples": latent})),
+            patch.object(
+                remote_i2v,
+                "decode_remote_outputs",
+                side_effect=lambda cond, latent: (cond, {"samples": latent}),
+            ),
         ):
             first = node.run(
                 prompt="scene",
@@ -217,7 +279,11 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
 
         with (
             patch.object(remote_i2v, "execute", side_effect=fake_execute),
-            patch.object(remote_i2v, "decode_remote_outputs", side_effect=lambda cond, latent: (cond, {"samples": latent})),
+            patch.object(
+                remote_i2v,
+                "decode_remote_outputs",
+                side_effect=lambda cond, latent: (cond, {"samples": latent}),
+            ),
         ):
             for _index in range(2):
                 node.run(
@@ -234,12 +300,18 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
 
         self.assertEqual(2, len(calls))
 
-    def test_connected_vae_loader_object_resolves_name_from_workflow_metadata(self) -> None:
+    def test_connected_vae_loader_object_resolves_name_from_workflow_metadata(
+        self,
+    ) -> None:
         node = remote_i2v.RemoteMiniMaxH3ImageToVideo()
         extra_pnginfo = {
             "workflow": {
                 "nodes": [
-                    {"id": 119, "type": "VAELoader", "widgets_values": ["remote-models\\video.vae"]},
+                    {
+                        "id": 119,
+                        "type": "VAELoader",
+                        "widgets_values": ["remote-models\\video.vae"],
+                    },
                     {
                         "id": 150,
                         "type": "RemoteMiniMaxH3ImageToVideo",
@@ -304,12 +376,22 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "VRAMCleanup"):
             remote_i2v.execute(
                 clip=remote_i2v.ClipSelection("minimax.safetensors", "minimax", "default"),
-                vae_name="video.vae", prompt="a moving scene", width=1344, height=768, length=124,
-                first_frame=FakeImage(), last_frame=None, request_id="request-1", api=api,
+                vae_name="video.vae",
+                prompt="a moving scene",
+                width=1344,
+                height=768,
+                length=124,
+                first_frame=FakeImage(),
+                last_frame=None,
+                request_id="request-1",
+                api=api,
                 deserialize=lambda cond, latent: (cond, latent),
             )
 
-        self.assertEqual([("capability", "MiniMaxH3ImageToVideo"), ("capability", "VRAMCleanup")], api.events)
+        self.assertEqual(
+            [("capability", "MiniMaxH3ImageToVideo"), ("capability", "VRAMCleanup")],
+            api.events,
+        )
 
     def test_invalid_frame_or_dimension_fails_before_upload(self) -> None:
         with self.assertRaisesRegex(ValueError, "BHWC"):
@@ -317,8 +399,14 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dimensions"):
             remote_i2v.build_workflow(
                 clip=remote_i2v.ClipSelection("minimax.safetensors", "minimax", "default"),
-                vae_name="video.vae", prompt="scene", width=33, height=768, length=124,
-                first_frame=None, last_frame=None, request_id="request-1",
+                vae_name="video.vae",
+                prompt="scene",
+                width=33,
+                height=768,
+                length=124,
+                first_frame=None,
+                last_frame=None,
+                request_id="request-1",
             )
 
     def test_timeout_and_caller_interrupt_cancel_the_submitted_i2v_prompt(self) -> None:
@@ -338,7 +426,11 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
                 raise AssertionError(name)
 
             def clip_loader_options(self):
-                return {"clip_name": ["minimax.safetensors"], "clip_type": ["minimax"], "device": ["default"]}
+                return {
+                    "clip_name": ["minimax.safetensors"],
+                    "clip_type": ["minimax"],
+                    "device": ["default"],
+                }
 
             def submit(self, _workflow):
                 return "prompt-1"
@@ -354,9 +446,17 @@ class MiniMaxImageToVideoContractTests(unittest.TestCase):
             with self.assertRaises(type(failure)):
                 remote_i2v.execute(
                     clip=remote_i2v.ClipSelection("minimax.safetensors", "minimax", "default"),
-                    vae_name="video.vae", prompt="scene", width=1344, height=768, length=124,
-                    first_frame=None, last_frame=None, request_id="request-1", api=api,
-                    deserialize=lambda cond, latent: (cond, latent), peer_memory_policy="keep",
+                    vae_name="video.vae",
+                    prompt="scene",
+                    width=1344,
+                    height=768,
+                    length=124,
+                    first_frame=None,
+                    last_frame=None,
+                    request_id="request-1",
+                    api=api,
+                    deserialize=lambda cond, latent: (cond, latent),
+                    peer_memory_policy="keep",
                 )
             self.assertEqual(["prompt-1"], api.cancelled)
 

@@ -2,23 +2,22 @@
 
 import json
 import os
-from pathlib import Path
 import tempfile
 import threading
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import torch
 
-from remoteworker.vae import codec, shared_store as store, schema, worker
+from remoteworker.vae import codec, schema, worker
+from remoteworker.vae import shared_store as store
 
 
 class NativeVaeLifecycle(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.enterContext(
-            patch.dict(os.environ, REMOTEWORKER_SHARED_VAE_DIR=str(self.root))
-        )
+        self.enterContext(patch.dict(os.environ, REMOTEWORKER_SHARED_VAE_DIR=str(self.root)))
         self.samples = {"samples": torch.ones(1, 4, 2, 2)}
         self.options = schema.video_options("video.vae", "", 24.0, 18, False)
 
@@ -89,9 +88,7 @@ class NativeVaeLifecycle(unittest.TestCase):
 
     def test_audio_sample_rate_bool_is_not_a_valid_integer_rate(self):
         with self.assertRaises(ValueError):
-            codec.validate_result(
-                {"waveform": torch.ones(1, 2, 4), "sample_rate": True}, "audio"
-            )
+            codec.validate_result({"waveform": torch.ones(1, 2, 4), "sample_rate": True}, "audio")
 
     def test_output_budget_saturates_instead_of_wrapping_large_shapes(self):
         from types import SimpleNamespace
@@ -146,8 +143,9 @@ class NativeVaeLifecycle(unittest.TestCase):
         self.assertEqual(list(target.parent.iterdir()), [])
 
     def test_tiled_options_reject_coercion_types_and_out_of_range_before_io(self):
-        from remoteworker.vae import shared_tensor, service
         from types import SimpleNamespace
+
+        from remoteworker.vae import service, shared_tensor
 
         invalid = {
             "tiled": ["false", 0, 1, None, []],
@@ -156,9 +154,7 @@ class NativeVaeLifecycle(unittest.TestCase):
             "temporal_size": [0, 7, 4097, True, "64"],
             "temporal_overlap": [0, 3, 4097, True, "8"],
         }
-        api = SimpleNamespace(
-            require_node=lambda *_: self.fail("invalid options reached peer")
-        )
+        api = SimpleNamespace(require_node=lambda *_: self.fail("invalid options reached peer"))
         for field, values in invalid.items():
             for value in values:
                 with self.subTest(field=field, value=value):
@@ -254,9 +250,7 @@ class NativeVaeLifecycle(unittest.TestCase):
                         self.assertIs(caught, failure)
                         self.assertIn(request_id, " ".join(failure.__notes__))
                     self.assertIsNotNone(original_traceback)
-                    self.assertTrue(
-                        store.request_path("temp", request_id, "latent.pt").is_file()
-                    )
+                    self.assertTrue(store.request_path("temp", request_id, "latent.pt").is_file())
 
     def test_cancel_after_tensor_validation_preserves_all_consumption_files(self):
         from remoteworker.core.cancellation import RequestCancelled

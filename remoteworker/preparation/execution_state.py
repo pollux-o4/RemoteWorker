@@ -1,6 +1,5 @@
 """Read native execution progress independently of a connected browser client."""
 
-
 from .._native import sampling_in
 
 

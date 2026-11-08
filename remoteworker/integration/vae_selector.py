@@ -3,6 +3,7 @@
 This node deliberately returns only a model-name string.  It does not resolve a
 local path and does not instantiate a local VAE object on the caller runtime.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -28,7 +29,10 @@ class RemoteVAESelector:
             "required": {
                 "server_url": ("STRING", {"default": DEFAULT_SERVER_URL}),
                 "timeout_seconds": ("INT", {"default": 30, "min": 5, "max": 1800}),
-                "vae_name": (_default_vae_choices(), {"default": _default_vae_choices()[0]}),
+                "vae_name": (
+                    _default_vae_choices(),
+                    {"default": _default_vae_choices()[0]},
+                ),
             },
         }
 

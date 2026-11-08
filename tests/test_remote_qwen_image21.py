@@ -24,15 +24,35 @@ class FakeApi:
     def require_node(self, name):
         self.events.append(("capability", name))
         if name == qwen.QWEN_WORKER:
-            return {"input": {"required": {key: [] for key in ("clip", "prompt", "negative_prompt", "resolution")}, "optional": {key: [] for key in ("vae", "negative_vision", "image_1")}}, "output": ["CONDITIONING", "CONDITIONING", "LATENT"]}
+            return {
+                "input": {
+                    "required": {key: [] for key in ("clip", "prompt", "negative_prompt", "resolution")},
+                    "optional": {key: [] for key in ("vae", "negative_vision", "image_1")},
+                },
+                "output": ["CONDITIONING", "CONDITIONING", "LATENT"],
+            }
         if name == "VAELoader":
             return {"input": {"required": {"vae_name": [["qwen-vae.safetensors"]]}}}
         if name == "VRAMCleanup":
-            return {"input": {"required": {"offload_model": [], "offload_cache": [], "reset_execution_cache": []}, "optional": {"anything": ["*"]}}, "output": ["*"]}
+            return {
+                "input": {
+                    "required": {
+                        "offload_model": [],
+                        "offload_cache": [],
+                        "reset_execution_cache": [],
+                    },
+                    "optional": {"anything": ["*"]},
+                },
+                "output": ["*"],
+            }
         raise AssertionError(name)
 
     def clip_loader_options(self):
-        return {"clip_name": ["qwen-text-encoder.safetensors"], "clip_type": ["qwen_image"], "device": ["default"]}
+        return {
+            "clip_name": ["qwen-text-encoder.safetensors"],
+            "clip_type": ["qwen_image"],
+            "device": ["default"],
+        }
 
     def upload_image(self, **kwargs):
         self.events.append(("upload", kwargs["index"]))
@@ -44,11 +64,16 @@ class FakeApi:
 
     def wait_for_history(self, _prompt_id):
         base = "remote-conditioning/request-1"
-        return {"prompt-1": {"status": {"status_str": "success"}, "outputs": {
-            "save_positive": {"conditioning": [f"{base}/positive_00001_.cond"]},
-            "save_negative": {"conditioning": [f"{base}/negative_00001_.cond"]},
-            "save_latent": {"latents": [f"{base}/latent_00001_.latent"]},
-        }}}
+        return {
+            "prompt-1": {
+                "status": {"status_str": "success"},
+                "outputs": {
+                    "save_positive": {"conditioning": [f"{base}/positive_00001_.cond"]},
+                    "save_negative": {"conditioning": [f"{base}/negative_00001_.cond"]},
+                    "save_latent": {"latents": [f"{base}/latent_00001_.latent"]},
+                },
+            }
+        }
 
     def download_artifact(self, path):
         return path.encode()
@@ -61,33 +86,62 @@ class RemoteQwenImage21Tests(unittest.TestCase):
     def test_model_resolution_rejects_missing_and_ambiguous_paths(self):
         resolve = qwen.resolve_peer_model_name
         self.assertEqual("a/model", resolve("a/model", ["a/model", "a\\model"], "clip_name"))
-        for selected, choices in [("missing", ["other"]), ("a\\b/c", ["a/b/c", "a/b\\c"]), ("A/model", ["a/model"])]:
+        for selected, choices in [
+            ("missing", ["other"]),
+            ("a\\b/c", ["a/b/c", "a/b\\c"]),
+            ("A/model", ["a/model"]),
+        ]:
             with self.subTest(selected=selected), self.assertRaises(ValueError):
                 resolve(selected, choices, "clip_name")
         api = FakeApi()
         with self.assertRaises(ValueError):
-            qwen.execute(clip=qwen.ClipSelection("missing", "qwen_image", "default"),
-                         vae_name="qwen-vae.safetensors", prompt="edit", negative_prompt="", resolution=1024,
-                         negative_vision=False, frames=[FakeFrame()], request_id="request-1", api=api)
+            qwen.execute(
+                clip=qwen.ClipSelection("missing", "qwen_image", "default"),
+                vae_name="qwen-vae.safetensors",
+                prompt="edit",
+                negative_prompt="",
+                resolution=1024,
+                negative_vision=False,
+                frames=[FakeFrame()],
+                request_id="request-1",
+                api=api,
+            )
         self.assertIsNone(api.workflow)
         self.assertFalse(any(event[0] == "upload" for event in api.events))
 
     def test_execute_resolves_peer_path_before_submitting(self):
         api = FakeApi()
-        api.clip_loader_options = lambda: {"clip_name": ["nvmes/qwen.safetensors"], "clip_type": ["qwen_image"], "device": ["default"]}
+        api.clip_loader_options = lambda: {
+            "clip_name": ["nvmes/qwen.safetensors"],
+            "clip_type": ["qwen_image"],
+            "device": ["default"],
+        }
         original_require = api.require_node
-        api.require_node = lambda name: ({"input": {"required": {"vae_name": [["nvmes/vae.safetensors"]]}}} if name == "VAELoader" else original_require(name))
-        qwen.execute(clip=qwen.ClipSelection("nvmes\\qwen.safetensors", "qwen_image", "default"),
-                     vae_name="nvmes\\vae.safetensors", prompt="edit", negative_prompt="", resolution=1024,
-                     negative_vision=False, frames=[], request_id="request-1", api=api)
+        api.require_node = lambda name: {"input": {"required": {"vae_name": [["nvmes/vae.safetensors"]]}}} if name == "VAELoader" else original_require(name)
+        qwen.execute(
+            clip=qwen.ClipSelection("nvmes\\qwen.safetensors", "qwen_image", "default"),
+            vae_name="nvmes\\vae.safetensors",
+            prompt="edit",
+            negative_prompt="",
+            resolution=1024,
+            negative_vision=False,
+            frames=[],
+            request_id="request-1",
+            api=api,
+        )
         self.assertEqual("nvmes/qwen.safetensors", api.workflow["clip"]["inputs"]["clip_name"])
         self.assertEqual("nvmes/vae.safetensors", api.workflow["vae"]["inputs"]["vae_name"])
 
     def test_workflow_preserves_native_three_output_contract_and_orders_cleanup(self):
         workflow = qwen.build_workflow(
             clip=qwen.ClipSelection("qwen-text-encoder.safetensors", "qwen_image", "default"),
-            vae_name="qwen-vae.safetensors", prompt="edit", negative_prompt="", resolution=1024,
-            negative_vision=False, image_refs=["remote-conditioning/request-1/image-0001.png [temp]"], request_id="request-1",
+            vae_name="qwen-vae.safetensors",
+            prompt="edit",
+            negative_prompt="",
+            resolution=1024,
+            negative_vision=False,
+            image_refs=["remote-conditioning/request-1/image-0001.png [temp]"],
+            request_id="request-1",
         )
         self.assertEqual(qwen.QWEN_WORKER, workflow["encode"]["class_type"])
         self.assertFalse(workflow["encode"]["inputs"]["negative_vision"])
@@ -101,28 +155,66 @@ class RemoteQwenImage21Tests(unittest.TestCase):
         api = FakeApi()
         with patch.object(qwen, "encode_image_frame_png", return_value=b"png"):
             result = qwen.execute(
-                clip=qwen.ClipSelection("qwen-text-encoder.safetensors", "qwen_image", "default"), vae_name="qwen-vae.safetensors",
-                prompt="edit", negative_prompt="", resolution=1024, negative_vision=False, frames=[FakeFrame()], request_id="request-1", api=api,
+                clip=qwen.ClipSelection("qwen-text-encoder.safetensors", "qwen_image", "default"),
+                vae_name="qwen-vae.safetensors",
+                prompt="edit",
+                negative_prompt="",
+                resolution=1024,
+                negative_vision=False,
+                frames=[FakeFrame()],
+                request_id="request-1",
+                api=api,
             )
-        self.assertEqual(tuple(path.encode() for path in (
-            "remote-conditioning/request-1/positive_00001_.cond",
-            "remote-conditioning/request-1/negative_00001_.cond",
-            "remote-conditioning/request-1/latent_00001_.latent",
-        )), result)
+        self.assertEqual(
+            tuple(
+                path.encode()
+                for path in (
+                    "remote-conditioning/request-1/positive_00001_.cond",
+                    "remote-conditioning/request-1/negative_00001_.cond",
+                    "remote-conditioning/request-1/latent_00001_.latent",
+                )
+            ),
+            result,
+        )
         self.assertEqual(("capability", qwen.QWEN_WORKER), api.events[0])
         self.assertEqual(("upload", 1), [event for event in api.events if event[0] == "upload"][0])
         self.assertEqual(("discard", "request-1"), api.events[-1])
 
     def test_master_node_round_trips_cpu_artifacts_and_caches_same_inputs(self):
         streams = []
-        for value in (["positive"], ["negative"], {"samples": torch.zeros([1, 64, 2, 2])}):
+        for value in (
+            ["positive"],
+            ["negative"],
+            {"samples": torch.zeros([1, 64, 2, 2])},
+        ):
             stream = io.BytesIO()
             torch.save(value, stream)
             streams.append(stream.getvalue())
         node = qwen.RemoteQwenImage21Service()
-        with patch.object(qwen, "HttpComfyApi", return_value=object()), patch.object(qwen, "execute", return_value=tuple(streams)) as execute:
-            first = node.run("edit", "", "http://127.0.0.1:8188", 600, "qwen-text-encoder.safetensors", "qwen-vae.safetensors", 1024, False)
-            second = node.run("edit", "", "http://127.0.0.1:8188", 600, "qwen-text-encoder.safetensors", "qwen-vae.safetensors", 1024, False)
+        with (
+            patch.object(qwen, "HttpComfyApi", return_value=object()),
+            patch.object(qwen, "execute", return_value=tuple(streams)) as execute,
+        ):
+            first = node.run(
+                "edit",
+                "",
+                "http://127.0.0.1:8188",
+                600,
+                "qwen-text-encoder.safetensors",
+                "qwen-vae.safetensors",
+                1024,
+                False,
+            )
+            second = node.run(
+                "edit",
+                "",
+                "http://127.0.0.1:8188",
+                600,
+                "qwen-text-encoder.safetensors",
+                "qwen-vae.safetensors",
+                1024,
+                False,
+            )
         self.assertEqual(["positive"], first[0])
         self.assertEqual(["negative"], first[1])
         self.assertIn("samples", first[2])
@@ -132,23 +224,47 @@ class RemoteQwenImage21Tests(unittest.TestCase):
     @unittest.skipUnless(qwen.comfy_io is not None, "Native schema needs ComfyUI on PYTHONPATH")
     def test_native_schema_preserves_outputs_autogrow_and_cache_fingerprint(self):
         import math
+
         schema = qwen.RemoteQwenImage21Node.define_schema()
         self.assertEqual("RemoteQwenImage21", schema.node_id)
-        self.assertEqual(["CONDITIONING", "CONDITIONING", "LATENT"], [output.io_type for output in schema.outputs])
+        self.assertEqual(
+            ["CONDITIONING", "CONDITIONING", "LATENT"],
+            [output.io_type for output in schema.outputs],
+        )
         images = next(item for item in schema.inputs if item.id == "images")
         self.assertEqual([f"image_{index}" for index in range(1, 17)], images.template.names)
         self.assertEqual(0, images.template.min)
-        self.assertEqual(0, qwen.RemoteQwenImage21Node.fingerprint_inputs(cache_policy="reuse_same_inputs"))
+        self.assertEqual(
+            0,
+            qwen.RemoteQwenImage21Node.fingerprint_inputs(cache_policy="reuse_same_inputs"),
+        )
         self.assertTrue(math.isnan(qwen.RemoteQwenImage21Node.fingerprint_inputs(cache_policy="always_refresh")))
 
     def test_service_uses_its_single_inline_connection_configuration(self):
         streams = []
-        for value in (["positive"], ["negative"], {"samples": torch.zeros([1, 64, 2, 2])}):
+        for value in (
+            ["positive"],
+            ["negative"],
+            {"samples": torch.zeros([1, 64, 2, 2])},
+        ):
             stream = io.BytesIO()
             torch.save(value, stream)
             streams.append(stream.getvalue())
-        with patch.object(qwen, "HttpComfyApi", return_value=object()), patch.object(qwen, "execute", return_value=tuple(streams)) as execute:
-            qwen.RemoteQwenImage21Service().run("edit", "", "http://127.0.0.1:8188", 30, "qwen-text-encoder.safetensors", "qwen-vae.safetensors", 1024, False, cache_policy="always_refresh")
+        with (
+            patch.object(qwen, "HttpComfyApi", return_value=object()),
+            patch.object(qwen, "execute", return_value=tuple(streams)) as execute,
+        ):
+            qwen.RemoteQwenImage21Service().run(
+                "edit",
+                "",
+                "http://127.0.0.1:8188",
+                30,
+                "qwen-text-encoder.safetensors",
+                "qwen-vae.safetensors",
+                1024,
+                False,
+                cache_policy="always_refresh",
+            )
         self.assertEqual("qwen-text-encoder.safetensors", execute.call_args.kwargs["clip"].clip_name)
         self.assertEqual("qwen-vae.safetensors", execute.call_args.kwargs["vae_name"])
 
@@ -156,7 +272,10 @@ class RemoteQwenImage21Tests(unittest.TestCase):
         peer_clip = "remote-models\\example-vision-encoder.safetensors"
 
         self.assertTrue(qwen._validate_dynamic_peer_models(peer_clip, "qwen-vae.safetensors"))
-        self.assertIn("must be a non-empty string", qwen._validate_dynamic_peer_models("", "qwen-vae.safetensors"))
+        self.assertIn(
+            "must be a non-empty string",
+            qwen._validate_dynamic_peer_models("", "qwen-vae.safetensors"),
+        )
 
     def test_images_must_be_consecutive_and_cannot_exceed_the_official_slot_cap(self):
         with self.assertRaisesRegex(ValueError, "consecutive"):

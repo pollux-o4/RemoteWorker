@@ -1,7 +1,8 @@
 """Picker visibility and localized labels must preserve node wire contracts."""
+
 import json
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from remoteworker import _native, registry
@@ -27,7 +28,9 @@ class InternalWorkerMetadata(unittest.TestCase):
                 self.assertEqual(node.RETURN_TYPES, output_types)
                 self.assertTrue(callable(getattr(node(), node.FUNCTION)))
 
-    def test_hidden_prompt_worker_dispatches_registered_inputs_to_native_execution(self):
+    def test_hidden_prompt_worker_dispatches_registered_inputs_to_native_execution(
+        self,
+    ):
         clip, image, video = object(), object(), object()
         expected = ("generated prompt",)
         with patch.object(_native, "prompt_generate_native", return_value=expected) as run:
@@ -68,9 +71,7 @@ class InternalWorkerMetadata(unittest.TestCase):
                 image_1=image,
             )
         self.assertIs(result, expected)
-        encode.assert_called_once_with(
-            clip, "edit", "blur", 512, model, True, {"image_1": image}
-        )
+        encode.assert_called_once_with(clip, "edit", "blur", 512, model, True, {"image_1": image})
 
 
 class LocalizedVaeTransferMetadata(unittest.TestCase):
@@ -80,9 +81,7 @@ class LocalizedVaeTransferMetadata(unittest.TestCase):
             ("ko", r"두.*텐서", "공유", "직접", "미사용", "실행 결과 없음"),
             ("en", r"both.*tensors?", "shared", "http", "unused", "no output"),
         ):
-            definitions = json.loads(
-                (root / "locales" / language / "nodeDefs.json").read_text()
-            )
+            definitions = json.loads((root / "locales" / language / "nodeDefs.json").read_text())
             for node, primary_type in (
                 (vae.RemoteVAEDecode, "IMAGE"),
                 (vae.RemoteVAEDecodeAudio, "AUDIO"),

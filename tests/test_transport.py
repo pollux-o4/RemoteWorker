@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
+import remoteworker.core.transport as capability_remote_conditioning
 import remoteworker.core.transport as http_remote_conditioning
 from remoteworker.conditioning.workflow import extract_artifact_path
 from remoteworker.core.protocol import validate_cleanup_capability
@@ -105,9 +106,7 @@ class HttpComfyApiTests(unittest.TestCase):
 
     def test_upload_file_preserves_safe_media_filename_and_mime_type(self) -> None:
         api = http_remote_conditioning.HttpComfyApi("http://127.0.0.1:8188", timeout_seconds=30)
-        response = http_FakeResponse(
-            b'{"name":"audio-00.wav","subfolder":"remote-conditioning/request-42","type":"temp"}'
-        )
+        response = http_FakeResponse(b'{"name":"audio-00.wav","subfolder":"remote-conditioning/request-42","type":"temp"}')
 
         with patch.object(http_remote_conditioning, "urlopen", return_value=response) as open_request:
             path = api.upload_file(
@@ -204,9 +203,7 @@ class HttpComfyApiTests(unittest.TestCase):
     def test_upload_file_accepts_payload_above_64_mib(self) -> None:
         api = http_remote_conditioning.HttpComfyApi("http://127.0.0.1:8188", timeout_seconds=30)
         large_data = b"V" * (85 * 1024 * 1024)
-        response = http_FakeResponse(
-            b'{"name":"video-00.mp4","subfolder":"remote-conditioning/request-42","type":"temp"}'
-        )
+        response = http_FakeResponse(b'{"name":"video-00.mp4","subfolder":"remote-conditioning/request-42","type":"temp"}')
         with patch.object(http_remote_conditioning, "urlopen", return_value=response):
             path = api.upload_file(
                 request_id="request-42",
@@ -228,9 +225,6 @@ class HttpComfyApiTests(unittest.TestCase):
                     data=oversized,
                     content_type="video/mp4",
                 )
-
-
-import remoteworker.core.transport as capability_remote_conditioning
 
 
 class capability_FakeResponse:
@@ -264,10 +258,17 @@ class ClipLoaderCapabilityTests(unittest.TestCase):
         )
 
     def test_accepts_cleanup_without_execution_cache_extension(self):
-        validate_cleanup_capability({"input": {
-            "required": {"offload_model": ["BOOLEAN"], "offload_cache": ["BOOLEAN"]},
-            "optional": {"anything": ["*", {}]},
-        }})
+        validate_cleanup_capability(
+            {
+                "input": {
+                    "required": {
+                        "offload_model": ["BOOLEAN"],
+                        "offload_cache": ["BOOLEAN"],
+                    },
+                    "optional": {"anything": ["*", {}]},
+                }
+            }
+        )
 
     def test_rejects_missing_vram_cleanup_contract(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "VRAMCleanup"):
@@ -384,6 +385,7 @@ class RequestLifecycleTests(unittest.TestCase):
         from unittest.mock import Mock
 
         from remoteworker.core.execution import completed_artifacts
+
         api = Mock()
         api.submit.return_value = None
         with self.assertRaisesRegex(RuntimeError, "prompt_id"):
@@ -396,14 +398,27 @@ class RequestLifecycleTests(unittest.TestCase):
         from unittest.mock import Mock
 
         from remoteworker.core.execution import completed_artifacts
+
         api = Mock()
         api.submit.return_value = "prompt-1"
-        api.wait_for_history.return_value = {"prompt-1": {
-            "status": {"status_str": "success"},
-            "outputs": {"save": {"text": ["remote-conditioning/request-1/result.cond"]}},
-        }}
+        api.wait_for_history.return_value = {
+            "prompt-1": {
+                "status": {"status_str": "success"},
+                "outputs": {"save": {"text": ["remote-conditioning/request-1/result.cond"]}},
+            }
+        }
         with self.assertRaisesRegex(ValueError, "decode failed"):
-            with completed_artifacts(api, {}, "request-1", (__import__("remoteworker.core.artifacts", fromlist=["CONDITIONING_ARTIFACT"]).CONDITIONING_ARTIFACT,)):
+            with completed_artifacts(
+                api,
+                {},
+                "request-1",
+                (
+                    __import__(
+                        "remoteworker.core.artifacts",
+                        fromlist=["CONDITIONING_ARTIFACT"],
+                    ).CONDITIONING_ARTIFACT,
+                ),
+            ):
                 raise ValueError("decode failed")
         api.cancel_prompt.assert_called_once_with("prompt-1")
 
@@ -411,8 +426,12 @@ class RequestLifecycleTests(unittest.TestCase):
         from unittest.mock import Mock
 
         from remoteworker.core.execution import RequestInputs
+
         api = Mock()
-        api.upload_image.side_effect = ["first.png [temp]", TimeoutError("second upload")]
+        api.upload_image.side_effect = [
+            "first.png [temp]",
+            TimeoutError("second upload"),
+        ]
         api.discard_inputs.side_effect = OSError("cleanup unavailable")
         with self.assertLogs("remoteworker.core.execution", level="WARNING") as caught:
             with self.assertRaisesRegex(TimeoutError, "second upload"):
@@ -426,6 +445,7 @@ class RequestLifecycleTests(unittest.TestCase):
         from unittest.mock import Mock
 
         from remoteworker.core.execution import RequestInputs
+
         api = Mock()
         with RequestInputs(api, "request-1"):
             pass
@@ -436,10 +456,14 @@ class RequestLifecycleTests(unittest.TestCase):
         from unittest.mock import Mock
 
         from remoteworker.core.execution import RequestInputs, cancel_on_remote_failure
+
         api = Mock()
         api.cancel_prompt.side_effect = RuntimeError("cancel unavailable")
         api.discard_inputs.side_effect = RuntimeError("discard unavailable")
-        with warnings.catch_warnings(), self.assertLogs("remoteworker.core.execution", level="WARNING") as caught:
+        with (
+            warnings.catch_warnings(),
+            self.assertLogs("remoteworker.core.execution", level="WARNING") as caught,
+        ):
             warnings.simplefilter("error", RuntimeWarning)
             with self.assertRaisesRegex(TimeoutError, "original timeout"):
                 with RequestInputs(api, "request-1") as request:
@@ -453,6 +477,7 @@ class PromptTransportTests(unittest.TestCase):
     def test_profile_lookup_validates_remote_records(self):
         from remoteworker.prompt.profiles import DEFAULT_PROFILE
         from remoteworker.prompt.transport import PromptComfyApi
+
         api = PromptComfyApi("http://127.0.0.1:8188", 30)
         with patch.object(api, "_json", return_value={"profiles": [DEFAULT_PROFILE.as_public_dict()]}):
             self.assertEqual(DEFAULT_PROFILE, api.get_prompt_enhancer_profile(DEFAULT_PROFILE.id))
@@ -463,11 +488,18 @@ class PromptTransportTests(unittest.TestCase):
     def test_profile_management_preserves_endpoint_payload_contract(self):
         from remoteworker.prompt.profiles import DEFAULT_PROFILE
         from remoteworker.prompt.transport import PromptComfyApi
+
         api = PromptComfyApi("http://127.0.0.1:8188", 30)
         profile = DEFAULT_PROFILE.as_public_dict()
         with patch.object(api, "_json", return_value={"profile": profile}) as request:
             self.assertEqual(profile, api.upsert_prompt_enhancer_profile(profile))
-            request.assert_called_once_with("/remote-prompt-enhancer/profiles", payload={"action": "upsert", "profile": profile})
+            request.assert_called_once_with(
+                "/remote-prompt-enhancer/profiles",
+                payload={"action": "upsert", "profile": profile},
+            )
         with patch.object(api, "_json", return_value={"deleted": True}) as request:
             self.assertTrue(api.delete_prompt_enhancer_profile(DEFAULT_PROFILE.id))
-            request.assert_called_once_with("/remote-prompt-enhancer/profiles", payload={"action": "delete", "profile_id": DEFAULT_PROFILE.id})
+            request.assert_called_once_with(
+                "/remote-prompt-enhancer/profiles",
+                payload={"action": "delete", "profile_id": DEFAULT_PROFILE.id},
+            )

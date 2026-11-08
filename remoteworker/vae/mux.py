@@ -12,9 +12,7 @@ from .._native import vae_mux_source_id as source_id
 def run(command, interrupt=None):
     if interrupt:
         interrupt()
-    with subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ) as process:
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
         try:
             while True:
                 try:
@@ -24,9 +22,7 @@ def run(command, interrupt=None):
                     if interrupt:
                         interrupt()
             if process.returncode:
-                raise RuntimeError(
-                    "미디어 처리 실패: " + err.decode(errors="replace")[-1200:]
-                )
+                raise RuntimeError("미디어 처리 실패: " + err.decode(errors="replace")[-1200:])
             return out
         finally:
             if process.poll() is None:
@@ -61,9 +57,7 @@ def validate(path, audio_required, interrupt=None):
 
 
 def combine(video_path, audio_path="", *, cleanup=True, interrupt=None):
-    return _native.vae_mux_combine(
-        str(video_path), str(audio_path), cleanup, interrupt, encode, probe
-    )
+    return _native.vae_mux_combine(str(video_path), str(audio_path), cleanup, interrupt, encode, probe)
 
 
 __all__ = ["run", "probe", "source_id", "encode", "validate", "combine"]

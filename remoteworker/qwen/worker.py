@@ -13,6 +13,7 @@ from typing import Any
 
 class RemoteQwenImage21Encode:
     """peer worker: emit Qwen 2.1 positive, negative, and matching latent."""
+
     DEV_ONLY = True
 
     CATEGORY = "conditioning/remote/internal"
@@ -38,7 +39,9 @@ class RemoteQwenImage21Encode:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "The negative prompt is always encoded. Enable only when the negative branch also needs the reference image's visual context.",
+                        "tooltip": (
+                            "The negative prompt is always encoded. Enable only when the negative branch also needs the reference image's visual context."
+                        ),
                     },
                 ),
                 **{f"image_{index}": ("IMAGE",) for index in range(1, 17)},
@@ -60,12 +63,8 @@ class RemoteQwenImage21Encode:
         # actually executes.
         from .._native import qwen_encode_native
 
-        return qwen_encode_native(
-            clip, prompt, negative_prompt, resolution, vae, negative_vision, images
-        )
+        return qwen_encode_native(clip, prompt, negative_prompt, resolution, vae, negative_vision, images)
 
 
 NODE_CLASS_MAPPINGS = {"RemoteQwenImage21Encode": RemoteQwenImage21Encode}
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RemoteQwenImage21Encode": "Remote Qwen Image 2.1 Encode (Worker)"
-}
+NODE_DISPLAY_NAME_MAPPINGS = {"RemoteQwenImage21Encode": "Remote Qwen Image 2.1 Encode (Worker)"}

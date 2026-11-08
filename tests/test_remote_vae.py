@@ -10,7 +10,6 @@ import torch
 
 from remoteworker.vae import codec, service, worker
 
-
 OPTIONS = dict(tiled=False, tile_size=512, overlap=64, temporal_size=64, temporal_overlap=8)
 
 
@@ -37,8 +36,12 @@ class FakeApi:
     def wait_for_history(self, prompt_id):
         if self.error:
             raise TimeoutError("peer timed out")
-        return {"job": {"status": {"status_str": "success"}, "outputs": {
-            "save": {"vae_output": [f"remote-conditioning/{self.request_id}/decoded.pt"]}}}}
+        return {
+            "job": {
+                "status": {"status_str": "success"},
+                "outputs": {"save": {"vae_output": [f"remote-conditioning/{self.request_id}/decoded.pt"]}},
+            }
+        }
 
     def download_artifact(self, path):
         return codec.dumps(torch.zeros(1, 4, 4, 3))
@@ -83,8 +86,14 @@ class RemoteVAETests(unittest.TestCase):
 
     def test_decode_uploads_cpu_latent_and_cleans_request(self):
         api = FakeApi()
-        result = service.execute_decode(api, samples={"samples": torch.zeros(1, 4, 8, 8)},
-            vae_name="test.vae", kind="image", options=OPTIONS, memory_policy="keep")
+        result = service.execute_decode(
+            api,
+            samples={"samples": torch.zeros(1, 4, 8, 8)},
+            vae_name="test.vae",
+            kind="image",
+            options=OPTIONS,
+            memory_policy="keep",
+        )
         self.assertEqual((1, 4, 4, 3), result.shape)
         self.assertEqual("discard", api.events[-1])
         self.assertNotIn("cleanup", api.graph)
@@ -93,15 +102,27 @@ class RemoteVAETests(unittest.TestCase):
     def test_decode_failure_cancels_only_its_prompt_and_discards_inputs(self):
         api = FakeApi(error=True)
         with self.assertRaises(TimeoutError):
-            service.execute_decode(api, samples={"samples": torch.zeros(1, 4, 8, 8)},
-                vae_name="test.vae", kind="image", options=OPTIONS, memory_policy="keep")
+            service.execute_decode(
+                api,
+                samples={"samples": torch.zeros(1, 4, 8, 8)},
+                vae_name="test.vae",
+                kind="image",
+                options=OPTIONS,
+                memory_policy="keep",
+            )
         self.assertEqual(["cancel", "discard-output", "discard"], api.events[-3:])
 
     def test_unavailable_vae_rejected_before_upload(self):
         api = FakeApi()
         with self.assertRaisesRegex(ValueError, "선택한 VAE가 없습니다"):
-            service.execute_decode(api, samples={}, vae_name="missing", kind="image",
-                options=OPTIONS, memory_policy="keep")
+            service.execute_decode(
+                api,
+                samples={},
+                vae_name="missing",
+                kind="image",
+                options=OPTIONS,
+                memory_policy="keep",
+            )
         self.assertNotIn("upload", api.events)
 
     def test_cleanup_order_is_after_output_serialization(self):
@@ -110,15 +131,21 @@ class RemoteVAETests(unittest.TestCase):
         self.assertFalse(graph["cleanup"]["inputs"]["reset_execution_cache"])
 
     def test_warmup_uses_minimal_zero_latent_for_each_media_family(self):
-        for kind, channels, dims, shape in (("audio", 32, 2, (1, 32, 2, 8)),
-                                             ("image", 24, 3, (1, 24, 2, 2, 2))):
+        for kind, channels, dims, shape in (
+            ("audio", 32, 2, (1, 32, 2, 8)),
+            ("image", 24, 3, (1, 24, 2, 2, 2)),
+        ):
             vae = SimpleNamespace(latent_channels=channels, latent_dim=dims)
-            with self.subTest(kind=kind), patch.object(worker, "decode", return_value={}) as call:
+            with (
+                self.subTest(kind=kind),
+                patch.object(worker, "decode", return_value={}) as call,
+            ):
                 self.assertEqual(("ready",), worker.RemoteVAEWarmupWorker().run(vae, kind))
             self.assertTrue(torch.equal(call.call_args.args[1]["samples"], torch.zeros(shape)))
 
     def test_warmup_always_executes_and_has_ordering_input(self):
         import math
+
         self.assertTrue(math.isnan(service.RemoteVAEWarmup.IS_CHANGED()))
         self.assertTrue(math.isnan(worker.RemoteVAEWarmupWorker.IS_CHANGED()))
         self.assertIn("after", service.RemoteVAEWarmup.INPUT_TYPES()["optional"])
@@ -127,16 +154,25 @@ class RemoteVAETests(unittest.TestCase):
         self.assertNotIn("tiled", service.RemoteVAEDecodeAudio.INPUT_TYPES()["required"])
 
     def test_worker_rejects_paths_outside_request_upload(self):
-        for path in ("/etc/passwd", "remote-conditioning/../samples.pt [temp]", "samples.pt"):
+        for path in (
+            "/etc/passwd",
+            "remote-conditioning/../samples.pt [temp]",
+            "samples.pt",
+        ):
             with self.assertRaises(ValueError):
                 worker.load_request_latent(path)
 
     def test_warmup_receipt_verified_and_keeps_models(self):
         api = FakeApi()
-        api.wait_for_history = lambda _: {"job": {"status": {"status_str": "success"}, "outputs": {
-            "save": {"text": [api.graph["save"]["inputs"]["filename_prefix"] + ".txt"]}}}}
+        api.wait_for_history = lambda _: {
+            "job": {
+                "status": {"status_str": "success"},
+                "outputs": {"save": {"text": [api.graph["save"]["inputs"]["filename_prefix"] + ".txt"]}},
+            }
+        }
         api.download_artifact = lambda _: b"ready"
         import json
+
         ticket = service.execute_warmup(api, vae_name="test.vae", kind="audio", server_url="http://peer")
         self.assertEqual("test.vae", json.loads(ticket)["vae_name"])
         self.assertEqual("http://peer", json.loads(ticket)["server_url"])
@@ -145,9 +181,15 @@ class RemoteVAETests(unittest.TestCase):
     def test_background_warmup_does_not_wait_and_preserves_passthrough(self):
         api = FakeApi()
         api.wait_for_history = lambda _: self.fail("background warmup must not wait")
-        ticket = service.execute_warmup(api, vae_name="test.vae", kind="audio",
-            server_url="http://peer", background=True)
+        ticket = service.execute_warmup(
+            api,
+            vae_name="test.vae",
+            kind="audio",
+            server_url="http://peer",
+            background=True,
+        )
         import json
+
         self.assertEqual("job", json.loads(ticket)["prompt_id"])
         conditioning = [[torch.ones(1), {}]]
         with patch.object(service, "peer_api", return_value=api):
@@ -156,15 +198,21 @@ class RemoteVAETests(unittest.TestCase):
 
     def test_warmup_ticket_cannot_join_a_different_peer_or_model(self):
         from remoteworker.vae import warmup
+
         api = FakeApi()
         ticket = warmup.schedule(api, vae_name="test.vae", kind="audio", server_url="http://peer")
-        for changes in ({"server_url": "http://other"}, {"vae_name": "other"}, {"kind": "image"}):
+        for changes in (
+            {"server_url": "http://other"},
+            {"vae_name": "other"},
+            {"kind": "image"},
+        ):
             options = dict(vae_name="test.vae", kind="audio", server_url="http://peer") | changes
             with self.assertRaisesRegex(ValueError, "다릅니다"):
                 warmup.finish(api, ticket, **options)
 
     def test_self_queue_calls_rejected_before_submission(self):
         import sys
+
         fake = SimpleNamespace(PromptServer=SimpleNamespace(instance=SimpleNamespace(port=18289)))
         with patch.dict(sys.modules, {"server": fake}):
             with self.assertRaisesRegex(ValueError, "다른"):
@@ -177,6 +225,7 @@ class RemoteVAETests(unittest.TestCase):
 
     def test_output_cleanup_preserves_unrelated_files_and_rejects_symlinks(self):
         from remoteworker.vae.routes import discard_output
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             path = root / "remote-conditioning" / "request-1"
@@ -191,6 +240,7 @@ class RemoteVAETests(unittest.TestCase):
             alias.symlink_to(root)
             with self.assertRaises(ValueError):
                 discard_output("alias", root)
+
 
 if __name__ == "__main__":
     unittest.main()

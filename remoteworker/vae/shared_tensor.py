@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-
-from ..core.cancellation import check_cancelled
 from .. import _native
+from ..core.cancellation import check_cancelled
 from . import shared_store as store
 from .schema import decode_fields
 
@@ -17,11 +16,10 @@ def options(vae_name, kind, **decode_options):
 
 def encode(samples, path, settings):
     from nodes import VAELoader
+
     from .worker import decode
 
-    return _native.vae_encode_tensor(
-        samples, path, settings, lambda name: VAELoader().load_vae(name)[0], decode
-    )
+    return _native.vae_encode_tensor(samples, path, settings, lambda name: VAELoader().load_vae(name)[0], decode)
 
 
 def consume(request_id, reported, settings):
@@ -76,9 +74,7 @@ class SharedVAETensorWorker:
         return float("nan")
 
     def run(self, request_id, vae_name, kind, **decode_options):
-        receipt = store.publish(
-            request_id, options(vae_name, kind, **decode_options), encode
-        )
+        receipt = store.publish(request_id, options(vae_name, kind, **decode_options), encode)
         return {"ui": {"shared_tensor": [receipt]}, "result": (receipt["path"],)}
 
 

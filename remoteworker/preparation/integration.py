@@ -1,16 +1,17 @@
 """ComfyUI adapter; ordinary nodes keep owning conditioning caches and decoding."""
 
-from functools import wraps
-import sys
-from .. import _native, pipeline
-from ..core.transport import _raise_if_caller_interrupted
-from .plan import head
 import inspect
 import os
+import sys
 import time
+from functools import wraps
+
+from .. import _native, pipeline
+from ..core.transport import _raise_if_caller_interrupted
+from .capabilities import discover
 from .coordinator import Coordinator
 from .invocation import is_speculative
-from .capabilities import discover
+from .plan import head
 
 coordinator = None
 
@@ -20,7 +21,6 @@ class PreparedResult(Exception):
         self.result = result
 
 
-
 def current_prompt():
     from comfy_execution.progress import get_progress_state
 
@@ -28,8 +28,7 @@ def current_prompt():
 
 
 def foreground_gate(url, decode=False, check_wait=None):
-    return _native.prep_foreground_lease(sys.modules[__name__], url, decode,
-                                        check_wait or _raise_if_caller_interrupted)
+    return _native.prep_foreground_lease(sys.modules[__name__], url, decode, check_wait or _raise_if_caller_interrupted)
 
 
 def managed(function, kind=None):
@@ -41,8 +40,7 @@ def managed(function, kind=None):
     def run(*args, **kwargs):
         values = call_signature.bind(*args, **kwargs)
         values.apply_defaults()
-        return _native.prep_managed_call(sys.modules[__name__], function, args, kwargs,
-                                         values.arguments, kind)
+        return _native.prep_managed_call(sys.modules[__name__], function, args, kwargs, values.arguments, kind)
 
     run._remote_preparation = True
     return run
@@ -76,21 +74,22 @@ def register(classes):
         queue = HttpComfyApi(url, 2)._json("/queue")
         return _native.prep_peer_available(queue)
 
+    from ..conditioning.service import clear_conditioning_cache
+    from ..minimax.common import clear_minimax_result_cache
     from .execution_state import sampling_now
     from .memory import PressureRelief
-    from ..minimax.common import clear_minimax_result_cache
-    from ..conditioning.service import clear_conditioning_cache
 
     def clear_disposable():
         clear_minimax_result_cache()
         clear_conditioning_cache()
 
     relief = PressureRelief(clear_disposable)
-    from .scheduler import Scheduler
-    from .events import EventBridge
-    from ..core.cancellation import check_cancelled
-    from .handoff import Handoffs
     import nodes
+
+    from ..core.cancellation import check_cancelled
+    from .events import EventBridge
+    from .handoff import Handoffs
+    from .scheduler import Scheduler
 
     coordinator = Coordinator(
         server,
@@ -98,8 +97,7 @@ def register(classes):
         warmup,
         available,
         sampling_now,
-        resolve=lambda graph, key: _native.prep_resolve_inputs(
-            graph, nodes.NODE_CLASS_MAPPINGS, key, decoders, check_cancelled),
+        resolve=lambda graph, key: _native.prep_resolve_inputs(graph, nodes.NODE_CLASS_MAPPINGS, key, decoders, check_cancelled),
         handoffs=Handoffs(),
         relief=relief,
         scheduler=Scheduler(),
@@ -114,5 +112,6 @@ def register(classes):
 
     coordinator.start()
 
+
 # Native callback namespace and public compatibility exports.
-__all__ = ['head', 'is_speculative', 'pipeline', 'time']
+__all__ = ["head", "is_speculative", "pipeline", "time"]

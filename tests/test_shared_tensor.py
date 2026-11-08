@@ -1,4 +1,5 @@
 """Actual shared tensor worker/storage/consumer; replace only HTTP and native VAE decode."""
+
 import os
 import tempfile
 import unittest
@@ -8,7 +9,17 @@ from unittest.mock import patch
 
 import torch
 
-from remoteworker.vae import codec, delivery, service, shared_tensor as transfer, shared_store as store
+from remoteworker.vae import (
+    codec,
+    delivery,
+    service,
+)
+from remoteworker.vae import (
+    shared_store as store,
+)
+from remoteworker.vae import (
+    shared_tensor as transfer,
+)
 
 
 class Peer:
@@ -30,7 +41,12 @@ class Peer:
         if self.fail_history:
             raise TimeoutError("lost history")
         status = "error" if self.fail_cleanup else "success"
-        return {prompt_id: {"status": {"status_str": status}, "outputs": {"save": result["ui"]}}}
+        return {
+            prompt_id: {
+                "status": {"status_str": status},
+                "outputs": {"save": result["ui"]},
+            }
+        }
 
     def cancel_prompt(self, prompt_id):
         self.cancelled = prompt_id
@@ -42,12 +58,26 @@ class SharedTensorContracts(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, REMOTEWORKER_SHARED_VAE_DIR=str(self.root)))
         self.peer = Peer()
         self.native = self.enterContext(patch("remoteworker.vae.worker.decode"))
-        self.enterContext(patch.dict("sys.modules", nodes=SimpleNamespace(VAELoader=lambda: SimpleNamespace(load_vae=lambda name: (object(),)))))
+        self.enterContext(
+            patch.dict(
+                "sys.modules",
+                nodes=SimpleNamespace(VAELoader=lambda: SimpleNamespace(load_vae=lambda name: (object(),))),
+            )
+        )
         self.samples = {"samples": torch.ones(1, 16, 1, 8, 8)}
         self.options = transfer.options("test.vae", "image")
 
     def run_transfer(self, kind="image", request_id=""):
-        return transfer.execute(self.peer, self.samples, "test.vae", kind, "http://peer", "keep", {}, request_id)
+        return transfer.execute(
+            self.peer,
+            self.samples,
+            "test.vae",
+            kind,
+            "http://peer",
+            "keep",
+            {},
+            request_id,
+        )
 
     def test_image_batch_transfers_exactly_without_final_media_or_http_budget(self):
         # A batch must remain a batch of images, never become an MP4.
@@ -85,9 +115,11 @@ class SharedTensorContracts(unittest.TestCase):
 
     def test_invalid_tensor_never_acknowledges_or_deletes_input(self):
         request_id = store.save_latent(self.samples)
+
         def bad(samples, path, settings):
             torch.save(torch.ones(3), path)
             return {}
+
         receipt = store.publish(request_id, self.options, bad)
         with self.assertRaisesRegex(ValueError, "invalid image"):
             transfer.consume(request_id, receipt, self.options)
@@ -98,8 +130,10 @@ class SharedTensorContracts(unittest.TestCase):
         self.native.return_value = torch.rand(1, 32, 48, 3)
         request_id = store.save_latent(self.samples)
         receipt = transfer.SharedVAETensorWorker().run(request_id, "test.vae", "image")["ui"]["shared_tensor"][0]
-        for reported, settings in ((receipt | {"bytes": 1}, self.options),
-                                    (receipt, self.options | {"tiled": True})):
+        for reported, settings in (
+            (receipt | {"bytes": 1}, self.options),
+            (receipt, self.options | {"tiled": True}),
+        ):
             with self.assertRaises(ValueError):
                 transfer.consume(request_id, reported, settings)
             self.assertTrue(store.request_path("temp", request_id, "latent.pt").exists())
@@ -114,12 +148,19 @@ class SharedTensorContracts(unittest.TestCase):
 
     def test_public_shared_output_is_tensor_and_legacy_file_socket_is_blocked(self):
         import sys
+
         class Blocker:
             def __init__(self, message):
                 self.message = message
+
         self.native.return_value = torch.rand(1, 32, 48, 3)
-        with patch.object(service, "peer_api", return_value=self.peer), \
-             patch.dict(sys.modules, {"comfy_execution.graph_utils": SimpleNamespace(ExecutionBlocker=Blocker)}):
+        with (
+            patch.object(service, "peer_api", return_value=self.peer),
+            patch.dict(
+                sys.modules,
+                {"comfy_execution.graph_utils": SimpleNamespace(ExecutionBlocker=Blocker)},
+            ),
+        ):
             output = service.RemoteVAEDecode().run(self.samples, "test.vae", output_mode="shared", memory_policy="keep")
         self.assertTrue(torch.equal(output["result"][0], self.native.return_value))
         self.assertIsInstance(output["result"][1], Blocker)

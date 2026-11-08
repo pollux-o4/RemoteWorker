@@ -34,14 +34,28 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
         self.assertNotIn("ref_audio_count", required)
         self.assertNotIn("peer_memory_policy", required)
         self.assertEqual("", required["clip_name"][0][0])
-        self.assertEqual(["release_after_result", "keep"], schema["optional"]["peer_memory_policy"][0])
-        self.assertEqual(["reuse_same_inputs", "always_refresh"], schema["optional"]["cache_policy"][0])
+        self.assertEqual(
+            ["release_after_result", "keep"],
+            schema["optional"]["peer_memory_policy"][0],
+        )
+        self.assertEqual(
+            ["reuse_same_inputs", "always_refresh"],
+            schema["optional"]["cache_policy"][0],
+        )
         self.assertEqual(("*", {"forceInput": True}), schema["optional"]["vae_name_override"])
         self.assertEqual(("*", {"forceInput": True}), schema["optional"]["audio_vae_name_override"])
-        self.assertEqual({"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"}, schema["hidden"])
+        self.assertEqual(
+            {"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"},
+            schema["hidden"],
+        )
 
-    def test_cache_policy_uses_native_signature_by_default_and_nan_only_for_refresh(self) -> None:
-        self.assertEqual(0, remote_minimax.RemoteMiniMaxH3ReferenceEncode.IS_CHANGED(cache_policy="reuse_same_inputs"))
+    def test_cache_policy_uses_native_signature_by_default_and_nan_only_for_refresh(
+        self,
+    ) -> None:
+        self.assertEqual(
+            0,
+            remote_minimax.RemoteMiniMaxH3ReferenceEncode.IS_CHANGED(cache_policy="reuse_same_inputs"),
+        )
         self.assertTrue(math.isnan(remote_minimax.RemoteMiniMaxH3ReferenceEncode.IS_CHANGED(cache_policy="always_refresh")))
 
     def test_validate_inputs_accepts_remote_discovered_model_aliases(self) -> None:
@@ -78,15 +92,23 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
 
         self.assertIn("cache_policy", result)
 
-    def test_workflow_maps_images_videos_and_audio_to_exact_native_input_names(self) -> None:
+    def test_workflow_maps_images_videos_and_audio_to_exact_native_input_names(
+        self,
+    ) -> None:
         workflow = remote_minimax.build_workflow(
             clip=remote_minimax.ClipSelection("minimax.safetensors", "minimax", "default"),
-            vae_name="video.vae", audio_vae_name="audio.vae", prompt="<Picture 1> <Video 1> <Audio 1>",
-            width=1344, height=768, length=124, ref_image_size="match",
+            vae_name="video.vae",
+            audio_vae_name="audio.vae",
+            prompt="<Picture 1> <Video 1> <Audio 1>",
+            width=1344,
+            height=768,
+            length=124,
+            ref_image_size="match",
             image_refs=["remote/request/image.png [temp]"],
             video_refs=[[f"remote/request/video-{index}.png [temp]" for index in range(5)]],
             video_audio_refs=["remote/request/video.wav [temp]"],
-            audio_refs=["remote/request/audio.wav [temp]"], request_id="request-1",
+            audio_refs=["remote/request/audio.wav [temp]"],
+            request_id="request-1",
         )
         inputs = workflow["encode"]["inputs"]
         self.assertEqual(["ref_image_0", 0], inputs["ref_images.ref_image_0"])
@@ -106,10 +128,19 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
     def test_keep_policy_does_not_add_cleanup_or_dependency_edge(self) -> None:
         workflow = remote_minimax.build_workflow(
             clip=remote_minimax.ClipSelection("minimax.safetensors", "minimax", "default"),
-            vae_name="video.vae", audio_vae_name="audio.vae", prompt="scene",
-            width=1344, height=768, length=124, ref_image_size="match",
-            image_refs=[], video_refs=[], video_audio_refs=[], audio_refs=[],
-            request_id="request-1", peer_memory_policy="keep",
+            vae_name="video.vae",
+            audio_vae_name="audio.vae",
+            prompt="scene",
+            width=1344,
+            height=768,
+            length=124,
+            ref_image_size="match",
+            image_refs=[],
+            video_refs=[],
+            video_audio_refs=[],
+            audio_refs=[],
+            request_id="request-1",
+            peer_memory_policy="keep",
         )
 
         self.assertNotIn("cleanup", workflow)
@@ -126,19 +157,35 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
                 if name == "VRAMCleanup":
                     return {
                         "input": {
-                            "required": {"offload_model": [], "offload_cache": [], "reset_execution_cache": []},
+                            "required": {
+                                "offload_model": [],
+                                "offload_cache": [],
+                                "reset_execution_cache": [],
+                            },
                             "optional": {"anything": ["*"]},
                         },
                         "output": ["*"],
                     }
                 if name == "VAELoader":
                     return {"input": {"required": {"vae_name": [["video.vae", "audio.vae"]]}}}
-                return {"output": ["CONDITIONING", "LATENT"], "input": {"optional": {
-                    "ref_images": [], "ref_videos": [], "ref_video_audios": [], "ref_audios": [],
-                }}}
+                return {
+                    "output": ["CONDITIONING", "LATENT"],
+                    "input": {
+                        "optional": {
+                            "ref_images": [],
+                            "ref_videos": [],
+                            "ref_video_audios": [],
+                            "ref_audios": [],
+                        }
+                    },
+                }
 
             def clip_loader_options(self):
-                return {"clip_name": ["minimax.safetensors"], "clip_type": ["minimax"], "device": ["default"]}
+                return {
+                    "clip_name": ["minimax.safetensors"],
+                    "clip_type": ["minimax"],
+                    "device": ["default"],
+                }
 
             def upload_image(self, **kwargs):
                 self.events.append(("image", kwargs["index"]))
@@ -153,10 +200,15 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
                 return "prompt-1"
 
             def wait_for_history(self, _prompt_id):
-                return {"prompt-1": {"status": {"status_str": "success"}, "outputs": {
-                    "save": {"conditioning": ["remote-conditioning/request-1/cond_00001_.cond"]},
-                    "save_latent": {"latents": ["remote-conditioning/request-1/latent_00001_.latent"]},
-                }}}
+                return {
+                    "prompt-1": {
+                        "status": {"status_str": "success"},
+                        "outputs": {
+                            "save": {"conditioning": ["remote-conditioning/request-1/cond_00001_.cond"]},
+                            "save_latent": {"latents": ["remote-conditioning/request-1/latent_00001_.latent"]},
+                        },
+                    }
+                }
 
             def download_artifact(self, path):
                 return path.encode()
@@ -166,21 +218,42 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
                 return True
 
         api = FakeApi()
-        with patch.object(remote_minimax, "encode_image_frame_png", return_value=b"png"), patch.object(remote_minimax, "encode_audio_wav", return_value=b"wav"):
+        with (
+            patch.object(remote_minimax, "encode_image_frame_png", return_value=b"png"),
+            patch.object(remote_minimax, "encode_audio_wav", return_value=b"wav"),
+        ):
             result = remote_minimax.execute(
                 clip=remote_minimax.ClipSelection("minimax.safetensors", "minimax", "default"),
-                vae_name="video.vae", audio_vae_name="audio.vae", prompt="a scene",
-                width=1344, height=768, length=124, ref_image_size="max",
-                images=[FakeImage(1)], videos=[FakeImage(5)], video_audios=[{"waveform": object(), "sample_rate": 44100}],
-                audios=[{"waveform": object(), "sample_rate": 44100}], request_id="request-1", api=api,
+                vae_name="video.vae",
+                audio_vae_name="audio.vae",
+                prompt="a scene",
+                width=1344,
+                height=768,
+                length=124,
+                ref_image_size="max",
+                images=[FakeImage(1)],
+                videos=[FakeImage(5)],
+                video_audios=[{"waveform": object(), "sample_rate": 44100}],
+                audios=[{"waveform": object(), "sample_rate": 44100}],
+                request_id="request-1",
+                api=api,
                 deserialize=lambda cond, latent: (cond, latent),
             )
 
-        self.assertEqual((b"remote-conditioning/request-1/cond_00001_.cond", b"remote-conditioning/request-1/latent_00001_.latent"), result)
+        self.assertEqual(
+            (
+                b"remote-conditioning/request-1/cond_00001_.cond",
+                b"remote-conditioning/request-1/latent_00001_.latent",
+            ),
+            result,
+        )
         self.assertEqual(("capability", "MiniMaxH3ReferenceToVideo"), api.events[0])
         self.assertEqual(("capability", "VRAMCleanup"), api.events[1])
         self.assertIn(("capability", "VAELoader"), api.events)
-        self.assertEqual(5, len([event for event in api.events if event[0] == "file" and "frame" in event[1]]))
+        self.assertEqual(
+            5,
+            len([event for event in api.events if event[0] == "file" and "frame" in event[1]]),
+        )
         self.assertIn(("file", "video-audio-00.wav", "audio/wav"), api.events)
         self.assertIn(("file", "audio-00.wav", "audio/wav"), api.events)
         self.assertEqual(("discard", "request-1"), api.events[-1])
@@ -194,9 +267,17 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
                 self.events.append(("capability", name))
                 if name == "VRAMCleanup":
                     return {"input": {"required": {}, "optional": {}}, "output": ["*"]}
-                return {"output": ["CONDITIONING", "LATENT"], "input": {"optional": {
-                    "ref_images": [], "ref_videos": [], "ref_video_audios": [], "ref_audios": [],
-                }}}
+                return {
+                    "output": ["CONDITIONING", "LATENT"],
+                    "input": {
+                        "optional": {
+                            "ref_images": [],
+                            "ref_videos": [],
+                            "ref_video_audios": [],
+                            "ref_audios": [],
+                        }
+                    },
+                }
 
             def upload_image(self, **_kwargs):
                 self.events.append("upload")
@@ -210,15 +291,33 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "VRAMCleanup"):
             remote_minimax.execute(
                 clip=remote_minimax.ClipSelection("minimax.safetensors", "minimax", "default"),
-                vae_name="video.vae", audio_vae_name="audio.vae", prompt="a scene",
-                width=1344, height=768, length=124, ref_image_size="max",
-                images=[FakeImage(1)], videos=[], video_audios=[], audios=[],
-                request_id="request-1", api=api, deserialize=lambda cond, latent: (cond, latent),
+                vae_name="video.vae",
+                audio_vae_name="audio.vae",
+                prompt="a scene",
+                width=1344,
+                height=768,
+                length=124,
+                ref_image_size="max",
+                images=[FakeImage(1)],
+                videos=[],
+                video_audios=[],
+                audios=[],
+                request_id="request-1",
+                api=api,
+                deserialize=lambda cond, latent: (cond, latent),
             )
 
-        self.assertEqual([("capability", "MiniMaxH3ReferenceToVideo"), ("capability", "VRAMCleanup")], api.events)
+        self.assertEqual(
+            [
+                ("capability", "MiniMaxH3ReferenceToVideo"),
+                ("capability", "VRAMCleanup"),
+            ],
+            api.events,
+        )
 
-    def test_connected_vae_names_use_primary_widgets_without_override_sockets(self) -> None:
+    def test_connected_vae_names_use_primary_widgets_without_override_sockets(
+        self,
+    ) -> None:
         node = remote_minimax.RemoteMiniMaxH3ReferenceEncode()
         with patch.object(remote_minimax, "execute", return_value=("cond", "latent")) as execute:
             result = node.run(
@@ -248,7 +347,11 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
 
         with (
             patch.object(remote_minimax, "execute", side_effect=fake_execute),
-            patch.object(remote_minimax, "decode_remote_outputs", side_effect=lambda cond, latent: (cond, {"samples": latent})),
+            patch.object(
+                remote_minimax,
+                "decode_remote_outputs",
+                side_effect=lambda cond, latent: (cond, {"samples": latent}),
+            ),
         ):
             first = node.run(
                 prompt="scene",
@@ -291,7 +394,11 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
 
         with (
             patch.object(remote_minimax, "execute", side_effect=fake_execute),
-            patch.object(remote_minimax, "decode_remote_outputs", side_effect=lambda cond, latent: (cond, {"samples": latent})),
+            patch.object(
+                remote_minimax,
+                "decode_remote_outputs",
+                side_effect=lambda cond, latent: (cond, {"samples": latent}),
+            ),
         ):
             for _index in range(2):
                 node.run(
@@ -310,13 +417,23 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
 
         self.assertEqual(2, len(calls))
 
-    def test_connected_vae_loader_objects_resolve_names_from_workflow_metadata(self) -> None:
+    def test_connected_vae_loader_objects_resolve_names_from_workflow_metadata(
+        self,
+    ) -> None:
         node = remote_minimax.RemoteMiniMaxH3ReferenceEncode()
         extra_pnginfo = {
             "workflow": {
                 "nodes": [
-                    {"id": 119, "type": "VAELoader", "widgets_values": ["remote-models\\video.vae"]},
-                    {"id": 120, "type": "VAELoader", "widgets_values": ["remote-models\\audio.vae"]},
+                    {
+                        "id": 119,
+                        "type": "VAELoader",
+                        "widgets_values": ["remote-models\\video.vae"],
+                    },
+                    {
+                        "id": 120,
+                        "type": "VAELoader",
+                        "widgets_values": ["remote-models\\audio.vae"],
+                    },
                     {
                         "id": 150,
                         "type": "RemoteMiniMaxH3ReferenceEncode",
@@ -353,9 +470,15 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
         self.assertEqual("remote-models\\video.vae", execute.call_args.kwargs["vae_name"])
         self.assertEqual("remote-models\\audio.vae", execute.call_args.kwargs["audio_vae_name"])
 
-    def test_connected_unresolvable_vae_object_fails_with_selector_guidance(self) -> None:
+    def test_connected_unresolvable_vae_object_fails_with_selector_guidance(
+        self,
+    ) -> None:
         node = remote_minimax.RemoteMiniMaxH3ReferenceEncode()
-        with patch.object(remote_minimax, "execute", side_effect=AssertionError("must fail before remote execution")):
+        with patch.object(
+            remote_minimax,
+            "execute",
+            side_effect=AssertionError("must fail before remote execution"),
+        ):
             with self.assertRaisesRegex(RuntimeError, "Remote VAE Name Selector"):
                 node.run(
                     prompt="scene",
@@ -400,11 +523,15 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "at least 5 frames"):
             remote_minimax._ordered_images("ref_video", {"ref_video_0": FakeImage(4)}, batches=True, maximum=3)
 
-    def test_rejects_the_legacy_flat_peer_reference_contract_before_upload(self) -> None:
+    def test_rejects_the_legacy_flat_peer_reference_contract_before_upload(
+        self,
+    ) -> None:
         with self.assertRaisesRegex(RuntimeError, "nested reference input contract"):
             remote_minimax.validate_ref2va_capability({"output": ["CONDITIONING", "LATENT"], "input": {"optional": {}}})
 
-    def test_timeout_and_caller_interrupt_cancel_the_submitted_ref2va_prompt(self) -> None:
+    def test_timeout_and_caller_interrupt_cancel_the_submitted_ref2va_prompt(
+        self,
+    ) -> None:
         class CallerInterrupted(BaseException):
             pass
 
@@ -415,15 +542,27 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
 
             def require_node(self, name):
                 if name == "MiniMaxH3ReferenceToVideo":
-                    return {"output": ["CONDITIONING", "LATENT"], "input": {"optional": {
-                        "ref_images": [], "ref_videos": [], "ref_video_audios": [], "ref_audios": [],
-                    }}}
+                    return {
+                        "output": ["CONDITIONING", "LATENT"],
+                        "input": {
+                            "optional": {
+                                "ref_images": [],
+                                "ref_videos": [],
+                                "ref_video_audios": [],
+                                "ref_audios": [],
+                            }
+                        },
+                    }
                 if name == "VAELoader":
                     return {"input": {"required": {"vae_name": [["video.vae", "audio.vae"]]}}}
                 raise AssertionError(name)
 
             def clip_loader_options(self):
-                return {"clip_name": ["minimax.safetensors"], "clip_type": ["minimax"], "device": ["default"]}
+                return {
+                    "clip_name": ["minimax.safetensors"],
+                    "clip_type": ["minimax"],
+                    "device": ["default"],
+                }
 
             def submit(self, _workflow):
                 return "prompt-1"
@@ -439,10 +578,21 @@ class MiniMaxReferenceContractTests(unittest.TestCase):
             with self.assertRaises(type(failure)):
                 remote_minimax.execute(
                     clip=remote_minimax.ClipSelection("minimax.safetensors", "minimax", "default"),
-                    vae_name="video.vae", audio_vae_name="audio.vae", prompt="scene",
-                    width=1344, height=768, length=124, ref_image_size="max",
-                    images=[], videos=[], video_audios=[], audios=[], request_id="request-1", api=api,
-                    deserialize=lambda cond, latent: (cond, latent), peer_memory_policy="keep",
+                    vae_name="video.vae",
+                    audio_vae_name="audio.vae",
+                    prompt="scene",
+                    width=1344,
+                    height=768,
+                    length=124,
+                    ref_image_size="max",
+                    images=[],
+                    videos=[],
+                    video_audios=[],
+                    audios=[],
+                    request_id="request-1",
+                    api=api,
+                    deserialize=lambda cond, latent: (cond, latent),
+                    peer_memory_policy="keep",
                 )
             self.assertEqual(["prompt-1"], api.cancelled)
 

@@ -1,6 +1,8 @@
 """Host locks and context capture around Rust-owned pipeline state."""
+
 from contextlib import contextmanager
 from threading import Lock, local
+
 from .._native import Job, SlotState
 
 
@@ -13,13 +15,16 @@ class Slots:
         self.state = SlotState()
 
     @property
-    def jobs(self): return self.state.jobs
+    def jobs(self):
+        return self.state.jobs
 
     @property
-    def active(self): return self.state.active
+    def active(self):
+        return self.state.active
 
     @property
-    def ready(self): return self.state.ready
+    def ready(self):
+        return self.state.ready
 
     @contextmanager
     def job(self, prompt_id, executor):

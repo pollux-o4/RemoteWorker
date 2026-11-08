@@ -1,15 +1,15 @@
 """Bounded lookahead: next conditioning, then the current job's first VAE."""
 
-from .. import _native
 import atexit
 import logging
 from collections import deque
 from threading import Event, Lock, Thread
+
+from .. import _native, pipeline
+from ..core.cancellation import RequestCancelled
 from . import plan
-from .. import pipeline
 from .actions import prefetch, prepare_vae
 from .memory import snapshot
-from ..core.cancellation import RequestCancelled
 
 
 class Coordinator:
@@ -31,9 +31,7 @@ class Coordinator:
         self.scheduler = scheduler
         self.wake = Event()
         self.ticks = 0
-        self.sampling = sampling or (
-            lambda prompt_id, graph: plan.is_sampling(graph, self.server.last_node_id)
-        )
+        self.sampling = sampling or (lambda prompt_id, graph: plan.is_sampling(graph, self.server.last_node_id))
         self.stop = Event()
         self.lock = Lock()
         self.events = deque(maxlen=30)
@@ -96,9 +94,7 @@ class Coordinator:
             except RequestCancelled:
                 pass  # The action owns cancellation identity and emits its own event.
             except Exception as exc:
-                logging.getLogger(__name__).warning(
-                    "Remote preparation skipped: %s", exc
-                )
+                logging.getLogger(__name__).warning("Remote preparation skipped: %s", exc)
                 self.record("error", reason=str(exc)[:200])
 
     def shutdown(self, *, wait=True):
@@ -106,6 +102,7 @@ class Coordinator:
         self.wake.set()
         if wait and self.thread is not None:
             from threading import current_thread
+
             if self.thread is not current_thread():
                 self.thread.join()
 
@@ -117,5 +114,6 @@ class Coordinator:
         atexit.register(self.shutdown)
         self.thread.start()
 
+
 # Native callback namespace and public compatibility exports.
-__all__ = ['pipeline', 'prefetch', 'prepare_vae', 'snapshot']
+__all__ = ["pipeline", "prefetch", "prepare_vae", "snapshot"]

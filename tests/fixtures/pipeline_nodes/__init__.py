@@ -1,4 +1,5 @@
 """Opt-in CPU nodes for real Comfy queue/pipeline integration tests."""
+
 import json
 import os
 import sys
@@ -24,12 +25,20 @@ def record(event):
         assert get_progress_state().prompt_id == context.prompt_id
     with _log_lock:
         with open(os.environ["REMOTEWORKER_PIPELINE_TEST_LOG"], "a", encoding="utf-8") as stream:
-            stream.write(json.dumps({"event": event, "at": time.monotonic(), "prompt": context.prompt_id}) + "\n")
+            stream.write(
+                json.dumps(
+                    {
+                        "event": event,
+                        "at": time.monotonic(),
+                        "prompt": context.prompt_id,
+                    }
+                )
+                + "\n"
+            )
 
 
 def _package_module(suffix):
-    matches = [module for name, module in sys.modules.copy().items()
-               if name.endswith(".remoteworker." + suffix) or name == "remoteworker." + suffix]
+    matches = [module for name, module in sys.modules.copy().items() if name.endswith(".remoteworker." + suffix) or name == "remoteworker." + suffix]
     if len(matches) != 1:
         raise RuntimeError(f"Expected one loaded RemoteWorker {suffix}, got {len(matches)}")
     return matches[0]
@@ -38,8 +47,13 @@ def _package_module(suffix):
 class PipelineSampler:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"tag": ("STRING",), "delay": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0})},
-                "optional": {"model": ("MODEL",)}}
+        return {
+            "required": {
+                "tag": ("STRING",),
+                "delay": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0}),
+            },
+            "optional": {"model": ("MODEL",)},
+        }
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "run"
@@ -51,6 +65,7 @@ class PipelineSampler:
 
     def run(self, tag, delay, model=None):
         import comfy.model_management as models
+
         record("sample-start-" + tag)
         until = time.monotonic() + delay
         while time.monotonic() < until:
@@ -79,9 +94,16 @@ def _managed_decode():
 class PipelineRemoteDecode:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"samples": ("LATENT",),
-                "server_url": ("STRING", {"default": "http://pipeline-fixture.invalid"}),
-                "delay": ("FLOAT", {"default": 1.5, "min": 0.0, "max": 10.0})}}
+        return {
+            "required": {
+                "samples": ("LATENT",),
+                "server_url": (
+                    "STRING",
+                    {"default": "http://pipeline-fixture.invalid"},
+                ),
+                "delay": ("FLOAT", {"default": 1.5, "min": 0.0, "max": 10.0}),
+            }
+        }
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "run"
@@ -113,8 +135,10 @@ class FakeModel:
 class PipelineModel:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"strength": ("FLOAT", {"default": 1.0})},
-                "optional": {"token": ("STRING", {"default": ""})}}
+        return {
+            "required": {"strength": ("FLOAT", {"default": 1.0})},
+            "optional": {"token": ("STRING", {"default": ""})},
+        }
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "run"

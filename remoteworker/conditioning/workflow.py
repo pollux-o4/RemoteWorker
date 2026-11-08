@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from .._native import workflow_build
-
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from .._native import workflow_build
 from ..core.artifacts import CONDITIONING_ARTIFACT, extract_artifact_paths
 from ..core.protocol import (
     DEFAULT_PEER_MEMORY_POLICY,
@@ -19,9 +18,7 @@ _CLIP_NAME_MARKER = "__REMOTE_CONDITIONING_CLIP_NAME__"
 _CLIP_TYPE_MARKER = "__REMOTE_CONDITIONING_CLIP_TYPE__"
 _CLIP_DEVICE_MARKER = "__REMOTE_CONDITIONING_CLIP_DEVICE__"
 _REQUEST_MARKER = "__REMOTE_CONDITIONING_REQUEST_ID__"
-_TEMPLATE_PATH = (
-    _ROOT / "templates" / "remote-conditioning" / "clip-conditioning.api.json"
-)
+_TEMPLATE_PATH = _ROOT / "templates" / "remote-conditioning" / "clip-conditioning.api.json"
 
 
 class ConditioningStrategySpec(NamedTuple):
@@ -33,9 +30,7 @@ class ConditioningStrategySpec(NamedTuple):
 
 STRATEGIES = {
     "text": ConditioningStrategySpec("text", 0, 0, "CLIPTextEncode"),
-    "krea2-grounded": ConditioningStrategySpec(
-        "krea2-grounded", 1, 2, "Krea2EditGroundedEncode"
-    ),
+    "krea2-grounded": ConditioningStrategySpec("krea2-grounded", 1, 2, "Krea2EditGroundedEncode"),
 }
 
 
@@ -71,17 +66,13 @@ def build_strategy_workflow(
     return workflow_build("conditioning", locals(), str(_TEMPLATE_PATH))
 
 
-def validate_strategy_capability(
-    strategy: ConditioningStrategySpec, node_info: dict[str, Any], image_count: int
-) -> None:
+def validate_strategy_capability(strategy: ConditioningStrategySpec, node_info: dict[str, Any], image_count: int) -> None:
     from .._native import workflow_validate
 
     workflow_validate("conditioning", node_info, strategy.name, image_count)
 
 
-def extract_artifact_path(
-    history: dict[str, Any], prompt_id: str, request_id: str
-) -> str:
+def extract_artifact_path(history: dict[str, Any], prompt_id: str, request_id: str) -> str:
     """Return the sole request-scoped `.cond` result from a completed history entry."""
     return extract_artifact_paths(
         history,

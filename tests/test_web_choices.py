@@ -9,7 +9,8 @@ from web_harness import REMOTE_MINIMAX_H3, REMOTE_MINIMAX_H3_IMAGE_TO_VIDEO, run
 class WebChoicesTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "Node.js required")
     def test_qwen_refresh_warns_without_replacing_missing_model(self):
-        run_web("""
+        run_web(
+            """
 import assert from 'node:assert/strict';
 import {refreshPeerChoices} from './custom/web/remote_qwen_image21.js';
 const target={name:'remote_text_encoder',value:'missing',options:{}};
@@ -19,7 +20,9 @@ await refreshPeerChoices(node,button,'encoder');
 assert.equal(target.value,'missing');
 assert.deepEqual(target.options.values,['missing','available']);
 assert.match(button.name,/다시 선택/);
-""", api="export const api={fetchApi:async()=>({ok:true,json:async()=>({clip_name:['available']})})};")
+""",
+            api="export const api={fetchApi:async()=>({ok:true,json:async()=>({clip_name:['available']})})};",
+        )
 
     @unittest.skipUnless(shutil.which("node"), "Node.js required")
     def test_peer_model_selection_preserves_missing_and_resolves_separators(self):
@@ -242,7 +245,11 @@ assert.equal(select('', ['first']), '');
             [widget["value"] for widget in result["widgets"]],
         )
         self.assertEqual(
-            ["remote-models\\old-video.vae", "remote-models\\new-video.vae", "remote-models\\new-audio.vae"],
+            [
+                "remote-models\\old-video.vae",
+                "remote-models\\new-video.vae",
+                "remote-models\\new-audio.vae",
+            ],
             result["widgets"][0]["options"]["values"],
         )
 
@@ -288,8 +295,10 @@ assert.equal(select('', ['first']), '');
                                   required: { profile_id: [["stale"], {}], server_url: ["STRING", { default: "http://127.0.0.1:8188" }] }
                                 } }];
                                 applyPromptProfilesToVueDefs(definitions, { profiles: [
-                                  { id: "example-small", description: "INT4", clip_name: "a", clip_type: "krea2", device: "default", max_length: 256, system_prompt: "x", accepted_media: ["image"] },
-                                  { id: "example", description: "INT8", clip_name: "b", clip_type: "krea2", device: "default", max_length: 256, system_prompt: "x", accepted_media: ["image"] },
+                                  { id: "example-small", description: "INT4", clip_name: "a", clip_type: "krea2",
+                                    device: "default", max_length: 256, system_prompt: "x", accepted_media: ["image"] },
+                                  { id: "example", description: "INT8", clip_name: "b", clip_type: "krea2",
+                                    device: "default", max_length: 256, system_prompt: "x", accepted_media: ["image"] },
                                 ] });
                                 process.stdout.write(JSON.stringify(definitions[0].input.required.profile_id));
                                 """
@@ -315,7 +324,8 @@ assert.equal(select('', ['first']), '');
                                 import "./custom/web/remote_conditioning.js";
                                 import { extension } from "./scripts/app.js";
                                 const definitions = { RemotePromptEnhancer: {
-                                  name: "RemotePromptEnhancer", input: { required: { profile_id: [["stale"], {}], server_url: ["STRING", { default: "http://127.0.0.1:8188" }] } }
+                                  name: "RemotePromptEnhancer", input: { required: { profile_id: [["stale"], {}],
+                                    server_url: ["STRING", { default: "http://127.0.0.1:8188" }] } }
                                 } };
                                 await extension.addCustomNodeDefs(definitions);
                                 process.stdout.write(JSON.stringify(definitions.RemotePromptEnhancer.input.required.profile_id[0]));
@@ -323,8 +333,10 @@ assert.equal(select('', ['first']), '');
             ),
             app="export let extension; export const app = { registerExtension(value) { extension = value; }, graph: { setDirtyCanvas() {} } };",
             api="export const api = { fetchApi: async () => ({ ok: true, json: async () => ({ profiles: ["
-            "{ id: 'example-small', description: 'INT4', clip_name: 'a', clip_type: 'krea2', device: 'default', max_length: 256, system_prompt: 'x', accepted_media: ['image'] },"
-            "{ id: 'example', description: 'INT8', clip_name: 'b', clip_type: 'krea2', device: 'default', max_length: 256, system_prompt: 'x', accepted_media: ['image'] }"
+            "{ id: 'example-small', description: 'INT4', clip_name: 'a', clip_type: 'krea2', "
+            "device: 'default', max_length: 256, system_prompt: 'x', accepted_media: ['image'] },"
+            "{ id: 'example', description: 'INT8', clip_name: 'b', clip_type: 'krea2', "
+            "device: 'default', max_length: 256, system_prompt: 'x', accepted_media: ['image'] }"
             "] }) }) };",
         )
 
@@ -406,7 +418,7 @@ assert.equal(select('', ['first']), '');
         self.assertEqual(["image_0", "image_1", "video_0"], json.loads(completed.stdout))
 
     def test_changed_server_during_body_read_preserves_choices_for_all_refreshes(self):
-        run_web('''
+        run_web("""
             import assert from "node:assert/strict";
             import { api } from "./scripts/api.js";
             import { refreshRemoteOptions } from "./custom/web/remote_choices.js";
@@ -430,10 +442,10 @@ assert.equal(select('', ['first']), '');
                 assert.deepEqual(widgets[2].options.values, ["kept"]);
                 assert.match(button.name, /변경됨/);
             }
-        ''')
+        """)
 
     def test_qwen_rejects_empty_choices_and_releases_busy_state(self):
-        run_web('''
+        run_web("""
             import assert from "node:assert/strict";
             import { api } from "./scripts/api.js";
             import { refreshPeerChoices } from "./custom/web/remote_qwen_image21.js";
@@ -447,10 +459,10 @@ assert.equal(select('', ['first']), '');
             assert.deepEqual(target.options.values, ["kept"]);
             assert.equal(button._remoteQwenRefreshInFlight, false);
             assert.match(button.name, /조회 실패/);
-        ''')
+        """)
 
     def test_profile_description_fits_node_and_keeps_full_tooltip(self):
-        run_web('''
+        run_web("""
             import assert from "node:assert/strict";
             import { updateProfileDescription } from "./custom/web/remote_profiles.js";
             const description = "Reference profile description ".repeat(8);
@@ -461,10 +473,12 @@ assert.equal(select('', ['first']), '');
             assert.ok(button.name.length <= 24);
             assert.equal(button.options.tooltip, description);
             assert.equal(button.options.serialize, false);
-        ''')
+        """)
 
-    def test_switching_profiles_preserves_each_undiscovered_model_without_duplicates(self):
-        run_web('''
+    def test_switching_profiles_preserves_each_undiscovered_model_without_duplicates(
+        self,
+    ):
+        run_web("""
             import assert from "node:assert/strict";
             import { makeSelect, selectProfileValue } from "./custom/web/remote_profile_dialog.js";
             globalThis.document = { createElement(tag) {
@@ -480,10 +494,10 @@ assert.equal(select('', ['first']), '');
             selectProfileValue(select, "missingA");
             assert.equal(select.value, "missingA");
             assert.equal(select.options.length, 3);
-        ''')
+        """)
 
     def test_korean_description_uses_canvas_measurements_and_restores_font(self):
-        run_web('''
+        run_web("""
             import assert from "node:assert/strict";
             import { app } from "./scripts/app.js";
             import { updateProfileDescription } from "./custom/web/remote_profiles.js";
@@ -498,4 +512,4 @@ assert.equal(select('', ['first']), '');
             assert.ok(width(button.name) <= 180);
             assert.equal(button.options.tooltip, description);
             assert.equal(app.canvas.ctx.font, "original");
-        ''')
+        """)

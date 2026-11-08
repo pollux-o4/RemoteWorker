@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-from ..preparation.capabilities import Preparation
 from .. import _native
-
-
+from .._native import vae_build_workflow as build_workflow
+from .._native import vae_execute_warmup as execute_warmup
+from .._native import vae_preflight as preflight
 from ..core.artifacts import RemoteArtifactSpec
 from ..core.transport import HttpComfyApi
 from ..defaults import DEFAULT_SERVER_URL
+from ..preparation.capabilities import Preparation
 from .schema import (
     DECODE_DEFAULTS,
-    VIDEO_FPS,
     VIDEO_CRF,
+    VIDEO_FPS,
     WARMUP_TYPE,
     decode_inputs,
-    warmup_inputs,
     validate_model_choice,
+    warmup_inputs,
 )
 
 RESULT = RemoteArtifactSpec("result", "save", "vae_output", ".pt")
@@ -38,11 +39,7 @@ def peer_api(server_url, timeout_seconds):
         try:
             import psutil
 
-            own_hosts.update(
-                address.address.split("%")[0]
-                for addresses in psutil.net_if_addrs().values()
-                for address in addresses
-            )
+            own_hosts.update(address.address.split("%")[0] for addresses in psutil.net_if_addrs().values() for address in addresses)
         except ImportError:
             pass
     _native.vae_validate_peer_url(server_url, port, list(own_hosts))
@@ -105,9 +102,7 @@ class RemoteVAEDecode:
     FUNCTION = "run"
     CATEGORY = "RemoteWorker/VAE"
 
-    def check_lazy_status(
-        self, samples=None, request_id="", output_mode="tensor", **kwargs
-    ):
+    def check_lazy_status(self, samples=None, request_id="", output_mode="tensor", **kwargs):
         return _native.vae_lazy_status(samples, request_id, output_mode)
 
     def run(
@@ -129,9 +124,10 @@ class RemoteVAEDecode:
         crf=VIDEO_CRF,
         request_id="",
     ):
-        from .codec import MAX_BYTES
-        from ..core.cancellation import check_cancelled
         from comfy_execution.graph_utils import ExecutionBlocker
+
+        from ..core.cancellation import check_cancelled
+        from .codec import MAX_BYTES
 
         api = peer_api(server_url, timeout_seconds)
         result = _native.vae_run_decode(
@@ -218,19 +214,13 @@ class RemoteVAEWarmup:
         return ticket, after
 
 
-NODE_CLASS_MAPPINGS = {
-    cls.__name__: cls
-    for cls in (RemoteVAEDecode, RemoteVAEDecodeAudio, RemoteVAEWarmup)
-}
+NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (RemoteVAEDecode, RemoteVAEDecodeAudio, RemoteVAEWarmup)}
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RemoteVAEDecode": "Remote VAE Decode",
     "RemoteVAEDecodeAudio": "Remote VAE Decode Audio",
     "RemoteVAEWarmup": "Remote VAE Warmup",
 }
 
-from .._native import vae_preflight as preflight, vae_build_workflow as build_workflow
-
-from .._native import vae_execute_warmup as execute_warmup
 
 __all__ = [
     "RESULT",

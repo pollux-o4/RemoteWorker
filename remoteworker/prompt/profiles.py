@@ -57,9 +57,7 @@ DEFAULT_PROFILE = PromptEnhancerProfile(
 def validate_profile_payload(payload: Any) -> PromptEnhancerProfile:
     from .._native import validate_profile_payload_native
 
-    values = validate_profile_payload_native(
-        payload, DEFAULT_PROFILE.system_prompt, list(DEFAULT_PROFILE.accepted_media)
-    )
+    values = validate_profile_payload_native(payload, DEFAULT_PROFILE.system_prompt, list(DEFAULT_PROFILE.accepted_media))
     values["accepted_media"] = tuple(values["accepted_media"])
     return PromptEnhancerProfile(**values)
 
@@ -72,14 +70,9 @@ def _default_storage_path() -> Path:
     try:
         import folder_paths
 
-        return (
-            Path(folder_paths.get_user_directory())
-            / "remote-prompt-enhancer-profiles.json"
-        )
+        return Path(folder_paths.get_user_directory()) / "remote-prompt-enhancer-profiles.json"
     except (ImportError, AttributeError):
-        return (
-            Path(__file__).resolve().parents[2] / "remote-prompt-enhancer-profiles.json"
-        )
+        return Path(__file__).resolve().parents[2] / "remote-prompt-enhancer-profiles.json"
 
 
 class PromptEnhancerProfileStore:
@@ -94,9 +87,7 @@ class PromptEnhancerProfileStore:
         try:
             document = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise RuntimeError(
-                f"Prompt enhancer profile registry is unreadable: {self.path}"
-            ) from exc
+            raise RuntimeError(f"Prompt enhancer profile registry is unreadable: {self.path}") from exc
         from .._native import profile_registry_native
 
         records = profile_registry_native(
@@ -107,7 +98,7 @@ class PromptEnhancerProfileStore:
         return [validate_profile_payload(record) for record in records]
 
     def get(self, profile_id: str) -> PromptEnhancerProfile:
-        from .._native import validate_profile_id_native, profile_select_native
+        from .._native import profile_select_native, validate_profile_id_native
 
         validate_profile_id_native(profile_id)
         return profile_select_native(self.list(), profile_id)
@@ -121,7 +112,7 @@ class PromptEnhancerProfileStore:
         return profile
 
     def delete(self, profile_id: str) -> bool:
-        from .._native import validate_profile_id_native, profile_mutate_native
+        from .._native import profile_mutate_native, validate_profile_id_native
 
         validate_profile_id_native(profile_id)
         kept, changed = profile_mutate_native(self.list(), None, profile_id)
@@ -142,9 +133,7 @@ class PromptEnhancerProfileStore:
             )
             + "\n"
         )
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=".remote-prompt-profiles-", suffix=".json", dir=self.path.parent
-        )
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".remote-prompt-profiles-", suffix=".json", dir=self.path.parent)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
                 stream.write(payload)

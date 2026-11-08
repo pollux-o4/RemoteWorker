@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from ..preparation.capabilities import Preparation
 from .. import _native
-
 from ..defaults import DEFAULT_SERVER_URL
+from ..preparation.capabilities import Preparation
 from . import shared_store as store
 from .schema import (
     LATENT_TYPE,
-    VIDEO_FPS,
     VIDEO_CRF,
+    VIDEO_FPS,
+    validate_model_choice,
     video_inputs,
     video_options,
-    validate_model_choice,
 )
 from .service import peer_api
 
@@ -112,15 +111,10 @@ class RemoteVAEVideo:
 
 
 def execute_shared(api, request_id, options, *, server_url, memory_policy, warmup=None):
-    return _native.vae_execute_shared(
-        api, request_id, options, server_url, memory_policy, warmup
-    )
+    return _native.vae_execute_shared(api, request_id, options, server_url, memory_policy, warmup)
 
 
-NODE_CLASS_MAPPINGS = {
-    cls.__name__: cls
-    for cls in (SaveSharedVAELatent, LoadSharedVAELatent, RemoteVAEVideo)
-}
+NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (SaveSharedVAELatent, LoadSharedVAELatent, RemoteVAEVideo)}
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveSharedVAELatent": "Save Shared VAE Latent",
     "LoadSharedVAELatent": "Load Shared VAE Latent",

@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from .. import _native
-
+from .._native import (
+    vae_validate_model_choice as validate_model_choice,
+)
+from .._native import (
+    vae_video_fields as video_fields,
+)
+from .._native import (
+    vae_video_options as video_options,
+)
 from ..defaults import DEFAULT_SERVER_URL
 
 WARMUP_TYPE = "REMOTE_VAE_WARMUP"
@@ -128,15 +136,7 @@ def decode_inputs(kind):
                     "tooltip": "Both modes return IMAGE/AUDIO. Shared: transfer via temporary shared tensor files. Tensor: HTTP transfer (512 MiB limit).",
                 },
             ),
-            **(
-                {
-                    name: value
-                    for name, value in video_fields().items()
-                    if name != "tiled"
-                }
-                if kind == "image"
-                else {}
-            ),
+            **({name: value for name, value in video_fields().items() if name != "tiled"} if kind == "image" else {}),
             "request_id": (
                 "STRING",
                 {
@@ -173,9 +173,7 @@ def warmup_inputs():
         "optional": {
             "after": (
                 "*",
-                {
-                    "tooltip": "Connect conditioning after encoding and cleanup. Pass through to the sampler to start warmup before sampling."
-                },
+                {"tooltip": "Connect conditioning after encoding and cleanup. Pass through to the sampler to start warmup before sampling."},
             )
         },
     }
@@ -201,12 +199,6 @@ def video_inputs():
         },
     }
 
-
-from .._native import (
-    vae_validate_model_choice as validate_model_choice,
-    vae_video_options as video_options,
-    vae_video_fields as video_fields,
-)
 
 __all__ = [
     "WARMUP_TYPE",

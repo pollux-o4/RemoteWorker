@@ -4,19 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .codec import dumps
 from .. import _native
+from .codec import dumps
 from .schema import DECODE_DEFAULTS, decode_fields, video_fields, video_options
 
 
 def load_request_latent(filename):
     _native.vae_upload_relative(filename)
     import folder_paths
+
     from .codec import MAX_BYTES
 
-    return _native.vae_load_upload(
-        filename, folder_paths.get_temp_directory(), MAX_BYTES
-    )
+    return _native.vae_load_upload(filename, folder_paths.get_temp_directory(), MAX_BYTES)
 
 
 def check_output_budget(vae, samples, kind):
@@ -115,9 +114,7 @@ class SaveRemoteVAEOutput:
         import folder_paths
 
         data = dumps(value)
-        full, name, counter, subfolder, _ = folder_paths.get_save_image_path(
-            filename_prefix, folder_paths.get_output_directory()
-        )
+        full, name, counter, subfolder, _ = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
         path = Path(full) / f"{name}_{counter:05}_.pt"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
@@ -145,11 +142,7 @@ class RemoteVAEWarmupWorker:
         # H3 video uses 24xTxHxW, audio uses 32xstereo xT. For other
         # families derive the rank/channels from the loaded native VAE.
         channels, dims = vae.latent_channels, vae.latent_dim
-        shape = tuple(
-            _native.vae_warmup_shape(
-                channels, dims, getattr(vae, "output_channels", None), kind
-            )
-        )
+        shape = tuple(_native.vae_warmup_shape(channels, dims, getattr(vae, "output_channels", None), kind))
         output = decode(vae, {"samples": torch.zeros(shape)}, kind, **DECODE_DEFAULTS)
         del output
         return ("ready",)
@@ -181,13 +174,10 @@ def _encode_wav(audio, waveform, path):
 
 def _encode_mp4(frames, audio, path, options):
     from fractions import Fraction
+
     from comfy_api.latest import InputImpl, Types
 
-    video = InputImpl.VideoFromComponents(
-        Types.VideoComponents(
-            images=frames, audio=audio, frame_rate=Fraction(str(options["fps"]))
-        )
-    )
+    video = InputImpl.VideoFromComponents(Types.VideoComponents(images=frames, audio=audio, frame_rate=Fraction(str(options["fps"]))))
     video.save_to(
         str(path),
         format=Types.VideoContainer.MP4,
@@ -197,9 +187,7 @@ def _encode_mp4(frames, audio, path, options):
 
 
 def encode_video(samples, path, options):
-    return _native.vae_encode_video(
-        samples, path, options, _load_vae, decode, _encode_wav, _encode_mp4
-    )
+    return _native.vae_encode_video(samples, path, options, _load_vae, decode, _encode_wav, _encode_mp4)
 
 
 class SharedVAEVideoWorker:

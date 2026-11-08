@@ -1,9 +1,10 @@
 """Native ownership under interleaved host callbacks and cancellation."""
+
 import gc
 import threading
 import unittest
 
-from remoteworker._native import Job, SlotState, PeerGate
+from remoteworker._native import Job, PeerGate, SlotState
 from remoteworker.pipeline.slots import Slots
 
 
@@ -96,40 +97,79 @@ class NativeExecutionTests(unittest.TestCase):
 
 class NativeHostTests(unittest.TestCase):
     def fixture(self, prompt_id="A"):
-        from types import ModuleType, SimpleNamespace
         import logging
+        from types import ModuleType, SimpleNamespace
+
         from remoteworker.pipeline.host import ComfyHost
+
         host = ComfyHost(SimpleNamespace(nodes=SimpleNamespace(interrupt_processing=lambda: calls.append("interrupt"))))
         calls = []
         host.slots = Slots(lambda job: None, lambda *_: None)
-        host.server = SimpleNamespace(client_id="client-A", workflow_metadata={}, send_sync=lambda *args: calls.append(("event", args)))
+        host.server = SimpleNamespace(
+            client_id="client-A",
+            workflow_metadata={},
+            send_sync=lambda *args: calls.append(("event", args)),
+        )
         host.assets = SimpleNamespace(pause_background_scan=lambda: calls.append("pause"))
         host.housekeeping = lambda: calls.append("housekeeping")
         executor = SimpleNamespace(status_messages=[], success=True, history_result={"outputs": {}})
+
         def execute(*args):
             calls.append(("execute", args))
             executor.success = True
             executor.history_result = {"outputs": {"save": {"images": []}}}
+
         executor.execute = execute
         executor.add_message = lambda *args, **kwargs: calls.append(("message", args, kwargs))
         host.executor = lambda: executor
-        prompt = (0, prompt_id, {"save": {"class_type": "SaveImage"}}, {"client_id": "client-A"}, ["save"], {"auth": "secret"}, "metadata")
+        prompt = (
+            0,
+            prompt_id,
+            {"save": {"class_type": "SaveImage"}},
+            {"client_id": "client-A"},
+            ["save"],
+            {"auth": "secret"},
+            "metadata",
+        )
         items = [(prompt, "item-A")]
+
         def take(**kwargs):
             self.assertEqual(kwargs, {"timeout": 0.1})
             return items.pop(0) if items else None
+
         def done(item_id, result, **kwargs):
-            calls.append(("done", item_id, result, kwargs["status"], kwargs["process_item"](prompt)))
+            calls.append(
+                (
+                    "done",
+                    item_id,
+                    result,
+                    kwargs["status"],
+                    kwargs["process_item"](prompt),
+                )
+            )
             host.queue.currently_running.pop(item_id, None)
-        host.queue = SimpleNamespace(mutex=threading.Lock(), currently_running={"item-A": prompt}, get=take, task_done=done)
+
+        host.queue = SimpleNamespace(
+            mutex=threading.Lock(),
+            currently_running={"item-A": prompt},
+            get=take,
+            task_done=done,
+        )
         source = ModuleType("host_fixture")
         source.time = SimpleNamespace(monotonic=lambda: 100.0, perf_counter=lambda: 100.0)
         source.snapshot = lambda: {"available": 8 * 1024**3}
         source.logging = logging
-        return host, executor, source, SimpleNamespace(ExecutionStatus=lambda **kwargs: SimpleNamespace(**kwargs)), calls
+        return (
+            host,
+            executor,
+            source,
+            SimpleNamespace(ExecutionStatus=lambda **kwargs: SimpleNamespace(**kwargs)),
+            calls,
+        )
 
     def test_native_worker_executes_and_strips_sensitive_history(self):
         from remoteworker._native import host_worker_tick
+
         host, executor, source, queue_type, calls = self.fixture()
         self.assertIs(host_worker_tick(host, None, source, queue_type), executor)
         execution = next(value for value in calls if isinstance(value, tuple) and value[0] == "execute")
@@ -145,6 +185,7 @@ class NativeHostTests(unittest.TestCase):
 
     def test_cancellation_before_slot_creation_skips_only_that_executor(self):
         from remoteworker._native import host_worker_tick
+
         host, executor, source, queue_type, calls = self.fixture()
         self.assertTrue(host.cancel("A"))
         self.assertTrue(host.policy.pending("A"))
@@ -159,6 +200,7 @@ class NativeHostTests(unittest.TestCase):
 
     def test_ram_pressure_leaves_next_prompt_pending(self):
         from remoteworker._native import host_worker_tick
+
         host, executor, source, queue_type, calls = self.fixture()
         source.snapshot = lambda: {"available": 1}
         with host.slots.job("previous", None) as previous:
@@ -171,6 +213,7 @@ class NativeHostTests(unittest.TestCase):
 
     def test_execution_failure_commits_error_and_releases_local_slot(self):
         from remoteworker._native import host_worker_tick
+
         host, executor, source, queue_type, calls = self.fixture()
         executor.execute = lambda *_: (_ for _ in ()).throw(ValueError("model failed"))
         with self.assertLogs("host_fixture", level="ERROR"):
@@ -184,8 +227,15 @@ class NativeHostTests(unittest.TestCase):
 
     def test_malformed_interrupt_never_becomes_cancel_all(self):
         from remoteworker._native import host_interrupt
+
         host, _, _, _, calls = self.fixture()
-        for payload in ([], "A", {"prompt_id": False}, {"prompt_id": ""}, {"prompt_id": 1}):
+        for payload in (
+            [],
+            "A",
+            {"prompt_id": False},
+            {"prompt_id": ""},
+            {"prompt_id": 1},
+        ):
             with self.assertRaises(ValueError):
                 host_interrupt(host, payload)
         self.assertFalse(host.policy.pending("A"))
@@ -199,8 +249,10 @@ class NativeShutdownTests(unittest.TestCase):
         import sys
         import textwrap
         from pathlib import Path
+
         from remoteworker import _native
-        code = textwrap.dedent('''
+
+        code = textwrap.dedent("""
             import atexit, importlib.util, os, sys, threading
             from types import SimpleNamespace
             import torch
@@ -229,16 +281,26 @@ class NativeShutdownTests(unittest.TestCase):
             atexit.register(check_shutdown)
             worker.start()
             assert ready.wait(3)
-        ''')
-        result = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
-            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=20,
-            env={**os.environ, "REMOTEWORKER_CONFIG": "", "TEST_NATIVE_BINARY": _native.__file__})
+        """)
+        result = subprocess.run(
+            [sys.executable, "-X", "faulthandler", "-c", code],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            env={
+                **os.environ,
+                "REMOTEWORKER_CONFIG": "",
+                "TEST_NATIVE_BINARY": _native.__file__,
+            },
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("joined native workers before finalization", result.stdout)
         self.assertNotIn("Fatal Python error", result.stderr)
 
     def test_shutdown_cancels_running_job_and_blocks_new_admission(self):
         from remoteworker._native import host_worker_tick
+
         host, executor, source, queue_type, calls = NativeHostTests().fixture()
         with host.slots.lock, host.slots.job("A", executor) as job:
             host.shutdown()
@@ -249,9 +311,13 @@ class NativeShutdownTests(unittest.TestCase):
         self.assertIs(host_worker_tick(host, executor, source, queue_type), executor)
         self.assertEqual(host.slots.status()["jobs"], [])
 
-    def test_coordinator_shutdown_wakes_and_joins_without_waiting_reconcile_interval(self):
+    def test_coordinator_shutdown_wakes_and_joins_without_waiting_reconcile_interval(
+        self,
+    ):
         from types import SimpleNamespace
+
         from remoteworker.preparation.coordinator import Coordinator
+
         owner = Coordinator(SimpleNamespace(), {}, None)
         owner.tick = lambda: None
         owner.start()

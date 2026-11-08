@@ -24,9 +24,7 @@ async def discard(request):
     from aiohttp import web
 
     try:
-        data = _native.vae_request_body(
-            await request.json(), ["request_id"], "Expected only request_id"
-        )
+        data = _native.vae_request_body(await request.json(), ["request_id"], "Expected only request_id")
         removed = await asyncio.to_thread(discard_output, data["request_id"])
         return web.json_response({"removed": removed})
     except (OSError, ValueError) as exc:
@@ -35,6 +33,7 @@ async def discard(request):
 
 async def shared_check(request):
     from aiohttp import web
+
     from .delivery import receive_probe
 
     try:
@@ -50,28 +49,24 @@ async def shared_check(request):
 
 async def preflight(request):
     from aiohttp import web
+
     from .delivery import check_shared
     from .service import peer_api
 
     try:
-        data = _native.vae_request_body(
-            await request.json(), ["server_url"], "Expected server_url"
-        )
-        return web.json_response(
-            await asyncio.to_thread(check_shared, peer_api(data["server_url"], 5))
-        )
+        data = _native.vae_request_body(await request.json(), ["server_url"], "Expected server_url")
+        return web.json_response(await asyncio.to_thread(check_shared, peer_api(data["server_url"], 5)))
     except (OSError, ValueError, RuntimeError) as exc:
         return web.json_response({"error": str(exc)}, status=400)
 
 
 async def media(request):
     from aiohttp import web
+
     from .shared_store import read_receipt
 
     try:
-        receipt = await asyncio.to_thread(
-            read_receipt, request.match_info["request_id"]
-        )
+        receipt = await asyncio.to_thread(read_receipt, request.match_info["request_id"])
         if receipt is None:
             raise FileNotFoundError("공유 결과 파일이 없습니다.")
         if not Path(receipt["path"]).is_file():

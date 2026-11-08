@@ -2,34 +2,29 @@
 
 from __future__ import annotations
 
+import hashlib
+
 # Rust runtime callback exports.
 import uuid as uuid
+from typing import Any
+
 from ..core.artifacts import CONDITIONING_ARTIFACT as CONDITIONING_ARTIFACT
 from ..core.execution import (
     RequestInputs as RequestInputs,
+)
+from ..core.execution import (
     completed_artifacts as completed_artifacts,
 )
-from ..core.media import ordered_image_frames as ordered_image_frames
-from ..core.protocol import validate_cleanup_capability as validate_cleanup_capability
-from ..core.transport import HttpComfyApi as HttpComfyApi
-from .workflow import (
-    build_strategy_workflow as build_strategy_workflow,
-    build_workflow as build_workflow,
-    validate_strategy_capability as validate_strategy_capability,
-)
-
-from ..preparation.capabilities import Preparation
-
-import hashlib
-from typing import Any
-
 from ..core.media import (
     _MAX_IMAGE_ATTACHMENTS,
     DynamicImageAndPolicyInputs,
     encode_image_frame_png,
 )
+from ..core.media import ordered_image_frames as ordered_image_frames
 from ..core.protocol import (
     CACHE_POLICIES as CACHE_POLICIES,
+)
+from ..core.protocol import (
     DEFAULT_CACHE_POLICY,
     DEFAULT_PEER_MEMORY_POLICY,
     PEER_MEMORY_POLICIES,
@@ -39,17 +34,27 @@ from ..core.protocol import (
     _validate_policy,
     _validate_server_url,
 )
+from ..core.protocol import validate_cleanup_capability as validate_cleanup_capability
 from ..core.result_cache import ByteResultCache
+from ..core.transport import HttpComfyApi as HttpComfyApi
 from ..defaults import DEFAULT_SERVER_URL, default_value
+from ..preparation.capabilities import Preparation
 from .workflow import (
     STRATEGIES,
+)
+from .workflow import (
+    build_strategy_workflow as build_strategy_workflow,
+)
+from .workflow import (
+    build_workflow as build_workflow,
+)
+from .workflow import (
+    validate_strategy_capability as validate_strategy_capability,
 )
 
 _CONDITIONING_BYTES_CACHE = ByteResultCache(
     max_entries=8,
-    max_bytes=_parse_env_positive_int(
-        "REMOTE_CONDITIONING_CACHE_BYTES", 256 * 1024 * 1024
-    ),
+    max_bytes=_parse_env_positive_int("REMOTE_CONDITIONING_CACHE_BYTES", 256 * 1024 * 1024),
 )
 
 
@@ -128,8 +133,9 @@ def execute_bytes(
     api: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> bytes:
-    from .._native import encoder_execute_native
     import sys
+
+    from .._native import encoder_execute_native
 
     return encoder_execute_native("conditioning", sys.modules[__name__], locals())
 
@@ -174,12 +180,11 @@ def execute_strategy_bytes(
     api: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> bytes:
-    from .._native import encoder_execute_native
     import sys
 
-    return encoder_execute_native(
-        "conditioning-strategy", sys.modules[__name__], locals()
-    )
+    from .._native import encoder_execute_native
+
+    return encoder_execute_native("conditioning-strategy", sys.modules[__name__], locals())
 
 
 class RemoteConditioning:
@@ -240,9 +245,7 @@ class RemoteConditioning:
         return encoder_local_inputs_native("conditioning", locals())
 
     @classmethod
-    def IS_CHANGED(
-        cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any
-    ) -> float:
+    def IS_CHANGED(cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any) -> float:
         from .._native import cache_fingerprint_native
 
         return cache_fingerprint_native(cache_policy, "Remote Conditioning")
@@ -264,8 +267,9 @@ class RemoteConditioning:
         unique_id=None,
         **images: Any,
     ) -> tuple[Any]:
-        from .._native import encoder_run_native
         import sys
+
+        from .._native import encoder_run_native
 
         return encoder_run_native("conditioning", sys.modules[__name__], locals())
 

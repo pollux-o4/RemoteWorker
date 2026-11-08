@@ -1,7 +1,7 @@
 """Instance-scoped Comfy event adapter; preserve native delivery and client routing."""
 
-from functools import wraps
 import logging
+from functools import wraps
 
 
 class EventBridge:
@@ -18,9 +18,7 @@ class EventBridge:
             except Exception:
                 self.errors += 1
                 if self.errors == 1:
-                    logging.getLogger(__name__).exception(
-                        "RemoteWorker progress adapter failed; reconciliation remains active"
-                    )
+                    logging.getLogger(__name__).exception("RemoteWorker progress adapter failed; reconciliation remains active")
             return result
 
         server.send_sync = send
@@ -29,9 +27,11 @@ class EventBridge:
         if not isinstance(event, str):
             return
         from .._native import prep_observe_event
+
         return prep_observe_event(self.coordinator, event, data, _progress_registry)
 
 
 def _progress_registry():
     from comfy_execution.progress import get_progress_state
+
     return get_progress_state()

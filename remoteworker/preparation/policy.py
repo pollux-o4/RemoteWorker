@@ -15,4 +15,5 @@ class Admission:
 
     def decide(self, *, remaining_steps, needs_clip, reserved):
         from .._native import admission
+
         return Decision(*admission(remaining_steps, needs_clip, reserved))

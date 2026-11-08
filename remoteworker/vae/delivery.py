@@ -2,6 +2,8 @@
 
 from .._native import (
     vae_check_shared as check_shared,
+)
+from .._native import (
     vae_receive_probe as receive_probe,
 )
 

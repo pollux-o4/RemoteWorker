@@ -1,15 +1,16 @@
 """Comfy worker adapter: native histories/caches, serialized GPU, isolated remote waits."""
+
 import atexit
 import gc
 import logging
+import sys
 import threading
 import time
-import sys
+
 from .. import _native
 from ..preparation.memory import snapshot
-
-from .slots import Slots
 from .reuse import ModelReuse
+from .slots import Slots
 
 
 class ComfyHost:
@@ -34,6 +35,7 @@ class ComfyHost:
 
     def share_models(self, executor):
         from comfy_execution.cache_provider import _contains_self_unequal
+
         return _native.host_share_models(self, executor, _contains_self_unequal)
 
     def capture(self, job):
@@ -41,14 +43,28 @@ class ComfyHost:
         import comfy.memory_management as memory
         import comfy_execution.progress as progress
         from comfy_execution.graph_utils import GraphBuilder
+
         saved = {
-            "server": {key: getattr(self.server, key, None) for key in
-                       ("client_id", "last_node_id", "last_prompt_id", "workflow_metadata")},
+            "server": {
+                key: getattr(self.server, key, None)
+                for key in (
+                    "client_id",
+                    "last_node_id",
+                    "last_prompt_id",
+                    "workflow_metadata",
+                )
+            },
             "progress": progress.global_progress_registry,
             "ram": (memory.extra_ram_release_callback, memory.RAM_CACHE_HEADROOM),
             "preview": self.entry.args.preview_method,
-            "prefix": tuple(getattr(GraphBuilder, key) for key in
-                            ("_default_prefix_root", "_default_prefix_call_index", "_default_prefix_graph_index")),
+            "prefix": tuple(
+                getattr(GraphBuilder, key)
+                for key in (
+                    "_default_prefix_root",
+                    "_default_prefix_call_index",
+                    "_default_prefix_graph_index",
+                )
+            ),
             "models": dict(job.executor.prompt_model_tracker.models),
         }
         job.executor.prompt_model_tracker.end()
@@ -60,6 +76,7 @@ class ComfyHost:
         import comfy.model_management as models
         import comfy_execution.progress as progress
         from comfy_execution.graph_utils import GraphBuilder
+
         for key, value in saved["server"].items():
             setattr(self.server, key, value)
         progress.global_progress_registry = saved["progress"]
@@ -72,15 +89,25 @@ class ComfyHost:
         models.interrupt_current_processing(job.cancel.is_set())
 
     def remote(self, operation):
-        from ..core.cancellation import cancellation_scope, RequestCancelled
         import comfy.model_management as models
         from comfy_execution.utils import get_executing_context
-        return _native.host_remote(self, operation, models, cancellation_scope,
-                                   RequestCancelled, get_executing_context, sys.modules[__name__])
+
+        from ..core.cancellation import RequestCancelled, cancellation_scope
+
+        return _native.host_remote(
+            self,
+            operation,
+            models,
+            cancellation_scope,
+            RequestCancelled,
+            get_executing_context,
+            sys.modules[__name__],
+        )
 
     def executor(self):
-        from execution import PromptExecutor, CacheType
         import comfy.model_management as models
+        from execution import CacheType, PromptExecutor
+
         return _native.host_executor(self, PromptExecutor, CacheType, models.total_ram)
 
     def cancel(self, prompt_id):
@@ -90,13 +117,22 @@ class ComfyHost:
     def install_cancel(self):
         from aiohttp import web
         from comfy_execution.cache_provider import register_cache_provider
+
         register_cache_provider(self.reuse)
-        from .previews import Previews
         from comfy_execution.utils import get_executing_context
-        self.previews = Previews(self.entry.nodes.PreviewImage, self.entry.nodes.NODE_CLASS_MAPPINGS,
-            self.server.send_sync, lambda: getattr(self.slots.thread, "job", None), get_executing_context)
+
+        from .previews import Previews
+
+        self.previews = Previews(
+            self.entry.nodes.PreviewImage,
+            self.entry.nodes.NODE_CLASS_MAPPINGS,
+            self.server.send_sync,
+            lambda: getattr(self.slots.thread, "job", None),
+            get_executing_context,
+        )
         self.previews.install()
         self.queue.interrupt_if_running = self.cancel
+
         @web.middleware
         async def interrupt(request, handler):
             if request.method == "POST" and request.path == "/interrupt":
@@ -110,6 +146,7 @@ class ComfyHost:
                     return web.json_response({"error": str(error)}, status=400)
                 return web.Response(status=200)
             return await handler(request)
+
         # Installation precedes PromptServer.setup(), before aiohttp freezes middleware.
         self.server.app.middlewares.append(interrupt)
 
@@ -118,6 +155,7 @@ class ComfyHost:
 
     def worker(self):
         from execution import PromptQueue
+
         executor = None
         while not self.policy.stopping:
             executor = _native.host_worker_tick(self, executor, sys.modules[__name__], PromptQueue)
@@ -126,6 +164,7 @@ class ComfyHost:
     def shutdown(self):
         with self._shutdown_guard:
             from ..preparation.integration import coordinator
+
             if coordinator is not None:
                 coordinator.shutdown(wait=False)
             with self.slots.guard:
@@ -150,5 +189,6 @@ class ComfyHost:
             self._threads.append(continuation)
         self.worker()
 
+
 # Native callback namespace and public compatibility exports.
-__all__ = ['gc', 'logging', 'snapshot', 'time']
+__all__ = ["gc", "logging", "snapshot", "time"]

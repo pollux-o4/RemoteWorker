@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from .._native import workflow_build
-
 from typing import Any
 
+from .._native import workflow_build
 from ..core.protocol import ClipSelection
 from .common import DEFAULT_PEER_MEMORY_POLICY
 

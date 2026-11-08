@@ -9,14 +9,16 @@ UI: LoadConditioning 노드는 LoadImage 처럼 업로드 버튼·드래그-드�
 호환: 생성·소비 측은 같은 텍스트 인코더·ComfyUI conditioning 계약을 사용해야 한다.
 `.cond` v1에는 호환성 메타데이터가 없으므로, 이 확인은 현재 작업자가 수행한다.
 """
+
 import os
-from .. import _native
 
 import torch
 
+from .. import _native
+
 try:
     import folder_paths
-except Exception:                       # ComfyUI 밖 import 대비(검증용)
+except Exception:  # ComfyUI 밖 import 대비(검증용)
     folder_paths = None
 
 
@@ -60,10 +62,12 @@ class SaveConditioning:
     @classmethod
     def INPUT_TYPES(cls):
         # filename_prefix: SaveImage/SaveLatent 와 동일 — "sub/name" 이면 sub 는 하위폴더, name 은 접두어.
-        return {"required": {
-            "conditioning": ("CONDITIONING",),
-            "filename_prefix": ("STRING", {"default": "conditioning/cond"}),
-        }}
+        return {
+            "required": {
+                "conditioning": ("CONDITIONING",),
+                "filename_prefix": ("STRING", {"default": "conditioning/cond"}),
+            }
+        }
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("artifact_path",)
@@ -142,7 +146,10 @@ class SaveRemoteLatent:
         return {
             "required": {
                 "samples": ("LATENT",),
-                "filename_prefix": ("STRING", {"default": "remote-conditioning/latent"}),
+                "filename_prefix": (
+                    "STRING",
+                    {"default": "remote-conditioning/latent"},
+                ),
             },
             "optional": {
                 # Allows remote workflows to serialize CONDITIONING first, then
@@ -177,10 +184,15 @@ class SaveRemoteText:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {
-            "text": ("STRING", {"multiline": True}),
-            "filename_prefix": ("STRING", {"default": "remote-conditioning/prompt"}),
-        }}
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True}),
+                "filename_prefix": (
+                    "STRING",
+                    {"default": "remote-conditioning/prompt"},
+                ),
+            }
+        }
 
     RETURN_TYPES = ()
     FUNCTION = "save"
@@ -204,9 +216,11 @@ class LoadConditioning:
     @classmethod
     def INPUT_TYPES(cls):
         # input/ 의 .cond 목록을 드롭다운으로. web/uploadcond.js 가 업로드 버튼·드래그·붙여넣기를 붙인다.
-        return {"required": {
-            "filename": (_list_input_conds(), {"cond_upload": True}),
-        }}
+        return {
+            "required": {
+                "filename": (_list_input_conds(), {"cond_upload": True}),
+            }
+        }
 
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "load"
@@ -215,7 +229,7 @@ class LoadConditioning:
     @classmethod
     def IS_CHANGED(cls, filename):
         p = _resolve(filename)
-        return os.path.getmtime(p) if p else float("nan")     # 파일 바뀌면 캐시 무효화
+        return os.path.getmtime(p) if p else float("nan")  # 파일 바뀌면 캐시 무효화
 
     @classmethod
     def VALIDATE_INPUTS(cls, filename):
@@ -225,8 +239,7 @@ class LoadConditioning:
     def load(self, filename):
         path = _resolve(filename)
         if path is None:
-            raise FileNotFoundError(
-                f"[LoadConditioning] '{filename}' 못 찾음 — input/ 에 올리거나 드롭해줘")
+            raise FileNotFoundError(f"[LoadConditioning] '{filename}' 못 찾음 — input/ 에 올리거나 드롭해줘")
         # weights_only=False: conditioning 은 state_dict 가 아니라 list/dict 구조라 필요(torch 2.6+ 기본 True 면 실패)
         cond = torch.load(path, map_location="cpu", weights_only=False)
         print(f"[LoadConditioning] loaded <- {path}")

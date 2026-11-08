@@ -1,12 +1,12 @@
 """Comfy media validation and lossless request encoding."""
 
 from __future__ import annotations
-from .. import _native
 
 import io
 import re
 from typing import Any
 
+from .. import _native
 from .protocol import (
     CACHE_POLICIES,
     DEFAULT_CACHE_POLICY,
@@ -57,6 +57,7 @@ class DynamicImageAndPolicyInputs(DynamicImageInputs):
 
 def ordered_image_frames(image_count: int, **images: Any) -> list[Any]:
     from .._native import ordered_image_frames as ordered
+
     return ordered(image_count, images)
 
 

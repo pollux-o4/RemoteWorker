@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
+import re
+
 # Rust runtime callback exports.
 import uuid as uuid
+from typing import Any
+
 from ..core.artifacts import PROMPT_ARTIFACT as PROMPT_ARTIFACT
 from ..core.execution import (
     RequestInputs as RequestInputs,
+)
+from ..core.execution import (
     completed_artifacts as completed_artifacts,
 )
 from ..core.media import encode_image_frame_png as encode_image_frame_png
-from ..prompt.transport import PromptComfyApi as PromptComfyApi
-
-import re
-from typing import Any
-
 from ..defaults import DEFAULT_SERVER_URL
+from ..prompt.transport import PromptComfyApi as PromptComfyApi
 from .profiles import DEFAULT_PROFILE, PromptEnhancerProfile
 
 _MAX_PROMPT_BYTES = 128 * 1024
@@ -27,9 +29,7 @@ _MAX_VIDEO_REFERENCES = 3
 _MAX_VIDEO_FRAMES = 32
 
 
-def build_generation_prompt(
-    prompt: str, system_prompt: str = DEFAULT_PROFILE.system_prompt
-) -> str:
+def build_generation_prompt(prompt: str, system_prompt: str = DEFAULT_PROFILE.system_prompt) -> str:
     from .._native import generated_prompt
 
     return generated_prompt(prompt, system_prompt)
@@ -43,8 +43,9 @@ def build_workflow(
     image_refs: list[str] | None = None,
     video_refs: list[list[str]] | None = None,
 ) -> dict[str, Any]:
-    from .._native import workflow_build
     from dataclasses import asdict
+
+    from .._native import workflow_build
 
     if not isinstance(profile, PromptEnhancerProfile):
         raise ValueError("Remote Prompt Enhancer profile is invalid")
@@ -73,9 +74,7 @@ def _ordered_batches(kind: str, media: dict[str, Any], maximum: int) -> list[Any
 
 
 def _ordered_media(kind: str, media: dict[str, Any], maximum: int) -> list[Any]:
-    return [
-        frame for batch in _ordered_batches(kind, media, maximum) for frame in batch
-    ]
+    return [frame for batch in _ordered_batches(kind, media, maximum) for frame in batch]
 
 
 def execute(
@@ -87,8 +86,9 @@ def execute(
     images: list[Any] | None = None,
     videos: list[Any] | None = None,
 ) -> str:
-    from .._native import encoder_execute_native
     import sys
+
+    from .._native import encoder_execute_native
 
     return encoder_execute_native("prompt", sys.modules[__name__], locals())
 
@@ -143,14 +143,16 @@ class RemotePromptEnhancer:
         timeout_seconds: int = 180,
         **media: Any,
     ) -> tuple[str]:
-        from .._native import encoder_run_native
         import sys
+
+        from .._native import encoder_run_native
 
         return encoder_run_native("prompt", sys.modules[__name__], locals())
 
 
 class RemotePromptGenerate:
     """peer-only worker: turn a system prompt, raw request, and visual refs into text."""
+
     DEV_ONLY = True
 
     @classmethod
@@ -165,10 +167,7 @@ class RemotePromptGenerate:
             },
             "optional": {
                 "image": ("IMAGE",),
-                **{
-                    f"video_{index}": ("IMAGE",)
-                    for index in range(_MAX_VIDEO_REFERENCES)
-                },
+                **{f"video_{index}": ("IMAGE",) for index in range(_MAX_VIDEO_REFERENCES)},
             },
         }
 
@@ -186,8 +185,9 @@ class RemotePromptGenerate:
         image: Any = None,
         **media: Any,
     ) -> tuple[str]:
-        from .._native import prompt_generate_native
         import sys
+
+        from .._native import prompt_generate_native
 
         return prompt_generate_native(
             sys.modules[__name__],

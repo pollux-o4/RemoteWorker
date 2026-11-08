@@ -7,6 +7,7 @@ from unittest.mock import patch
 import torch
 
 import remoteworker.conditioning.service as execution_remote_conditioning
+import remoteworker.conditioning.service as image_remote_conditioning
 from remoteworker.core.media import DynamicImageInputs
 
 
@@ -223,9 +224,6 @@ class RemoteExecutionTests(unittest.TestCase):
         self.assertEqual(2, execute_bytes.call_count)
 
 
-import remoteworker.conditioning.service as image_remote_conditioning
-
-
 class image_FakeBatch:
     def __init__(self, count: int, height: int = 64, width: int = 96, channels: int = 3):
         self.shape = (count, height, width, channels)
@@ -327,9 +325,7 @@ class OrderedImageAttachmentTests(unittest.TestCase):
         import numpy as np
         from PIL import Image
 
-        encoded = image_remote_conditioning.encode_image_frame_png(
-            image_FakeFrame(np.zeros((37, 53, 3), dtype=np.float32))
-        )
+        encoded = image_remote_conditioning.encode_image_frame_png(image_FakeFrame(np.zeros((37, 53, 3), dtype=np.float32)))
         with Image.open(io.BytesIO(encoded)) as image:
             self.assertEqual((53, 37), image.size)
 

@@ -3,8 +3,14 @@
 from .. import _native
 from .._native import (
     vae_cpu_value as cpu_value,
+)
+from .._native import (
     vae_restore as restore,
+)
+from .._native import (
     vae_validate_latent as validate_latent,
+)
+from .._native import (
     vae_validate_result as validate_result,
 )
 

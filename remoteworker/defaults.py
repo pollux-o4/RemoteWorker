@@ -12,13 +12,7 @@ def load_local_settings() -> dict[str, Any]:
     location = os.environ.get("REMOTEWORKER_CONFIG")
     if location == "":
         return {}
-    path = (
-        Path(location).expanduser()
-        if location
-        else Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-        / "remoteworker"
-        / "defaults.json"
-    )
+    path = Path(location).expanduser() if location else Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "remoteworker" / "defaults.json"
     if not path.exists():
         if location:
             raise RuntimeError("Configured RemoteWorker settings file does not exist")

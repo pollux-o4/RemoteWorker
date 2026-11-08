@@ -16,10 +16,7 @@ class PromptComfyApi(HttpComfyApi):
     def get_prompt_enhancer_profile(self, profile_id: str) -> PromptEnhancerProfile:
         from .._native import profile_select_native
 
-        profiles = [
-            validate_profile_payload(payload)
-            for payload in self.list_prompt_enhancer_profiles()
-        ]
+        profiles = [validate_profile_payload(payload) for payload in self.list_prompt_enhancer_profiles()]
         return profile_select_native(profiles, profile_id)
 
     def upsert_prompt_enhancer_profile(self, profile: dict[str, Any]) -> dict[str, Any]:

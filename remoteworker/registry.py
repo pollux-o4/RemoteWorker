@@ -1,14 +1,31 @@
 """ComfyUI node exports and explicit route registration."""
+
 from .conditioning import service as conditioning
 from .integration import artifact_io, discovery_routes, profile_routes, vae_selector
 from .minimax import image_to_video, reference
 from .prompt import service as prompt
 from .qwen import service as qwen
 from .qwen import worker as qwen_worker
-from .vae import service as vae_service, worker as vae_worker, routes as vae_routes
-from .vae import shared_video, combine_node, shared_tensor
+from .vae import combine_node, shared_tensor, shared_video
+from .vae import routes as vae_routes
+from .vae import service as vae_service
+from .vae import worker as vae_worker
 
-NODE_MODULES = (artifact_io, conditioning, reference, image_to_video, prompt, vae_selector, qwen_worker, qwen, vae_service, vae_worker, shared_video, combine_node, shared_tensor)
+NODE_MODULES = (
+    artifact_io,
+    conditioning,
+    reference,
+    image_to_video,
+    prompt,
+    vae_selector,
+    qwen_worker,
+    qwen,
+    vae_service,
+    vae_worker,
+    shared_video,
+    combine_node,
+    shared_tensor,
+)
 
 
 def collect_nodes(modules):
@@ -35,9 +52,12 @@ def register_routes():
     vae_routes.register_routes()
     try:
         from .preparation.integration import register
+
         register(NODE_CLASS_MAPPINGS)
         from .pipeline import install
+
         install()
     except ImportError:
         import logging
+
         logging.getLogger(__name__).exception("Remote preparation unavailable")

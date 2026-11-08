@@ -7,6 +7,9 @@ import sys
 import unittest
 from pathlib import Path
 
+import remoteworker.conditioning.service as peer_remote_conditioning
+import remoteworker.conditioning.service as workflow_remote_conditioning
+import remoteworker.integration.vae_selector as vae_remote_vae_selector
 from remoteworker.conditioning.workflow import extract_artifact_path
 from remoteworker.core.protocol import build_release_cleanup_node
 
@@ -32,7 +35,12 @@ class NodeRegistrationTests(unittest.TestCase):
         from types import SimpleNamespace
 
         from remoteworker.registry import collect_nodes
-        module = SimpleNamespace(__name__="fixture", NODE_CLASS_MAPPINGS={"Shared": object}, NODE_DISPLAY_NAME_MAPPINGS={"Shared": "Shared"})
+
+        module = SimpleNamespace(
+            __name__="fixture",
+            NODE_CLASS_MAPPINGS={"Shared": object},
+            NODE_DISPLAY_NAME_MAPPINGS={"Shared": "Shared"},
+        )
         with self.assertRaisesRegex(ValueError, "Duplicate ComfyUI node IDs"):
             collect_nodes((module, module))
 
@@ -40,7 +48,12 @@ class NodeRegistrationTests(unittest.TestCase):
         from types import SimpleNamespace
 
         from remoteworker.registry import collect_nodes
-        module = SimpleNamespace(__name__="fixture", NODE_CLASS_MAPPINGS={"Missing": object}, NODE_DISPLAY_NAME_MAPPINGS={})
+
+        module = SimpleNamespace(
+            __name__="fixture",
+            NODE_CLASS_MAPPINGS={"Missing": object},
+            NODE_DISPLAY_NAME_MAPPINGS={},
+        )
         with self.assertRaisesRegex(ValueError, "display names do not match"):
             collect_nodes((module,))
 
@@ -66,9 +79,6 @@ class NodeRegistrationTests(unittest.TestCase):
         )
 
 
-import remoteworker.conditioning.service as peer_remote_conditioning
-
-
 class ServerUrlTests(unittest.TestCase):
     def test_accepts_localhost_port_and_hosted_https_origin(self) -> None:
         self.assertEqual(
@@ -85,9 +95,6 @@ class ServerUrlTests(unittest.TestCase):
             peer_remote_conditioning._validate_server_url("localhost:8188")
         with self.assertRaisesRegex(ValueError, "server_url"):
             peer_remote_conditioning._validate_server_url("https://comfy.example/api/prompt")
-
-
-import remoteworker.integration.vae_selector as vae_remote_vae_selector
 
 
 class RemoteVAESelectorContractTests(unittest.TestCase):
@@ -108,9 +115,6 @@ class RemoteVAESelectorContractTests(unittest.TestCase):
         self.assertIn("server_url", schema["required"])
         self.assertIn("vae_name", schema["required"])
         self.assertNotIn("VAE", repr(schema))
-
-
-import remoteworker.conditioning.service as workflow_remote_conditioning
 
 
 class ClipSelectionTemplateTests(unittest.TestCase):
@@ -177,7 +181,9 @@ class ClipSelectionTemplateTests(unittest.TestCase):
     def test_request_id_and_clip_selection_fail_fast(self) -> None:
         with self.assertRaisesRegex(ValueError, "request_id"):
             workflow_remote_conditioning.build_workflow(
-                workflow_remote_conditioning.ClipSelection("text-encoder.safetensors", "lumina2", "default"), "text", "../../escape"
+                workflow_remote_conditioning.ClipSelection("text-encoder.safetensors", "lumina2", "default"),
+                "text",
+                "../../escape",
             )
         with self.assertRaisesRegex(ValueError, "CLIP selection"):
             workflow_remote_conditioning.build_workflow(
@@ -240,6 +246,7 @@ class ClipSelectionTemplateTests(unittest.TestCase):
         for field, default in zip(
             ("remote_text_encoder", "clip_type", "device"),
             workflow_remote_conditioning.ZIT_DEFAULT_CLIP,
+            strict=False,
         ):
             self.assertEqual([default], schema["required"][field][0])
             self.assertEqual(default, schema["required"][field][1]["default"])
@@ -269,9 +276,7 @@ class ClipSelectionTemplateTests(unittest.TestCase):
             0,
             workflow_remote_conditioning.RemoteConditioning.IS_CHANGED(cache_policy="reuse_same_inputs"),
         )
-        self.assertTrue(
-            math.isnan(workflow_remote_conditioning.RemoteConditioning.IS_CHANGED(cache_policy="always_refresh"))
-        )
+        self.assertTrue(math.isnan(workflow_remote_conditioning.RemoteConditioning.IS_CHANGED(cache_policy="always_refresh")))
 
     def test_invalid_policies_fail_fast_at_input_validation(self) -> None:
         self.assertIn(
@@ -285,43 +290,69 @@ class ClipSelectionTemplateTests(unittest.TestCase):
         )
         self.assertIn(
             "cache_policy",
-            workflow_remote_conditioning.RemoteConditioning.VALIDATE_INPUTS(
-                "clip.safetensors", "lumina2", "default", cache_policy="disk_cache"
-            ),
+            workflow_remote_conditioning.RemoteConditioning.VALIDATE_INPUTS("clip.safetensors", "lumina2", "default", cache_policy="disk_cache"),
         )
 
 
 class LocalDefaultBoundaryTests(unittest.TestCase):
-    def _probe(self, settings_path, module='remote_defaults'):
+    def _probe(self, settings_path, module="remote_defaults"):
         import os
         import subprocess
+
         env = dict(os.environ, REMOTEWORKER_CONFIG=settings_path)
-        result = subprocess.run([sys.executable, '-c',
-            'import json; import remoteworker.defaults as remote_defaults; print(json.dumps(remote_defaults.LOCAL_SETTINGS)); print(remote_defaults.DEFAULT_SERVER_URL)'],
-            cwd=REGISTRATION_PACKAGE_ROOT, env=env, text=True, capture_output=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import json; import remoteworker.defaults as remote_defaults; "
+                "print(json.dumps(remote_defaults.LOCAL_SETTINGS)); print(remote_defaults.DEFAULT_SERVER_URL)",
+            ],
+            cwd=REGISTRATION_PACKAGE_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
         return result
 
     def test_public_defaults_ignore_machine_config_when_disabled(self):
-        result = self._probe('')
+        result = self._probe("")
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(['{}', 'http://127.0.0.1:8188'], result.stdout.splitlines())
+        self.assertEqual(["{}", "http://127.0.0.1:8188"], result.stdout.splitlines())
 
     def test_explicit_local_overrides_and_missing_config_failures(self):
         import json
         import tempfile
+
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'settings.json'
-            path.write_text(json.dumps({'server_url': 'http://peer.example:8188', 'qwen_clip': 'folder/encoder.safetensors'}))
+            path = Path(directory) / "settings.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "server_url": "http://peer.example:8188",
+                        "qwen_clip": "folder/encoder.safetensors",
+                    }
+                )
+            )
             result = self._probe(str(path))
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual('http://peer.example:8188', result.stdout.splitlines()[-1])
+            self.assertEqual("http://peer.example:8188", result.stdout.splitlines()[-1])
             path.unlink()
             self.assertNotEqual(0, self._probe(str(path)).returncode)
 
     def test_invalid_local_config_rejected_without_silent_fallback(self):
         import tempfile
-        for payload in ['not json', '[]', '{"unknown": "value"}', '{"qwen_clip": 4}', '{"prompt_profile": []}']:
-            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as directory:
-                path = Path(directory) / 'settings.json'
+
+        for payload in [
+            "not json",
+            "[]",
+            '{"unknown": "value"}',
+            '{"qwen_clip": 4}',
+            '{"prompt_profile": []}',
+        ]:
+            with (
+                self.subTest(payload=payload),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                path = Path(directory) / "settings.json"
                 path.write_text(payload)
                 self.assertNotEqual(0, self._probe(str(path)).returncode)

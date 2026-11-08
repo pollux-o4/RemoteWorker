@@ -6,6 +6,9 @@ import tempfile
 import textwrap
 from pathlib import Path
 
+from remoteworker.minimax import image_to_video as REMOTE_MINIMAX_H3_IMAGE_TO_VIDEO
+from remoteworker.minimax import reference as REMOTE_MINIMAX_H3
+
 ROOT = Path(__file__).resolve().parents[1]
 WEB_SOURCE = ROOT / "web" / "remote_conditioning.js"
 QWEN_WEB_SOURCE = ROOT / "web" / "remote_qwen_image21.js"
@@ -51,7 +54,5 @@ def run_web(
             text=True,
         )
 
-from remoteworker.minimax import image_to_video as REMOTE_MINIMAX_H3_IMAGE_TO_VIDEO
-from remoteworker.minimax import reference as REMOTE_MINIMAX_H3
 
 __all__ = ["run_web", "REMOTE_MINIMAX_H3", "REMOTE_MINIMAX_H3_IMAGE_TO_VIDEO"]

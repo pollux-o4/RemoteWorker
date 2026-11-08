@@ -32,12 +32,7 @@ class DynamicReferenceMedia(dict[str, tuple[str]]):
         if not isinstance(key, str):
             return False
         prefix, separator, suffix = key.rpartition("_")
-        return bool(
-            separator
-            and prefix in self._KINDS
-            and suffix.isdigit()
-            and int(suffix) >= 0
-        )
+        return bool(separator and prefix in self._KINDS and suffix.isdigit() and int(suffix) >= 0)
 
     def __getitem__(self, key: str) -> tuple[str]:
         if key not in self:
@@ -71,17 +66,13 @@ class DynamicReferenceAndVaeInputs(DynamicReferenceMedia):
         return super().__getitem__(key)
 
 
-def _connected_slots(
-    prefix: str, media: dict[str, Any], maximum: int
-) -> list[tuple[str, Any]]:
+def _connected_slots(prefix: str, media: dict[str, Any], maximum: int) -> list[tuple[str, Any]]:
     from .._native import connected_slots_native
 
     return connected_slots_native(prefix, media, maximum)
 
 
-def _ordered_images(
-    prefix: str, media: dict[str, Any], *, batches: bool, maximum: int
-) -> list[Any]:
+def _ordered_images(prefix: str, media: dict[str, Any], *, batches: bool, maximum: int) -> list[Any]:
     from .._native import ordered_images_native
 
     return ordered_images_native(prefix, media, batches, maximum, False)
@@ -100,9 +91,7 @@ def encode_audio_wav(audio: Any) -> bytes:
         waveform = audio["waveform"].detach().to(device="cpu").float().numpy()
         sample_rate = audio["sample_rate"]
     except (AttributeError, KeyError, TypeError, ValueError) as exc:
-        raise ValueError(
-            "Remote MiniMax H3 AUDIO must contain a tensor waveform and sample_rate"
-        ) from exc
+        raise ValueError("Remote MiniMax H3 AUDIO must contain a tensor waveform and sample_rate") from exc
     return bytes(
         encode_audio_wav_native(
             sample_rate,
@@ -117,10 +106,7 @@ def _bytes_fingerprint(data: bytes) -> str:
 
 
 def _image_batch_fingerprint(batch: Any) -> tuple[str, ...]:
-    return tuple(
-        _bytes_fingerprint(encode_image_frame_png(batch[index]))
-        for index in range(batch.shape[0])
-    )
+    return tuple(_bytes_fingerprint(encode_image_frame_png(batch[index])) for index in range(batch.shape[0]))
 
 
 def _audio_fingerprint(audio: Any) -> str:

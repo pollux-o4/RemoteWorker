@@ -3,6 +3,8 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+from .._native import prep_bind_values as call_values
+
 _speculative = ContextVar("remote_preparation_speculative", default=False)
 
 
@@ -19,7 +21,5 @@ def speculative_call():
         _speculative.reset(token)
 
 
-from .._native import prep_bind_values as call_values
-
 # Native callback namespace and public compatibility exports.
-__all__ = ['call_values']
+__all__ = ["call_values"]

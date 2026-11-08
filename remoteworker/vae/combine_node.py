@@ -1,7 +1,7 @@
 """File-based counterpart to CreateVideo; standard VIDEO output stays composable."""
 
-from .mux import combine
 from .. import _native
+from .mux import combine
 
 
 class RemoteVAECombineMedia:
@@ -47,9 +47,7 @@ class RemoteVAECombineMedia:
             cleanup=exclusive,
             interrupt=throw_exception_if_processing_interrupted,
         )
-        media = {
-            key: receipt[key] for key in ("request_id", "path", "sources", "final")
-        }
+        media = {key: receipt[key] for key in ("request_id", "path", "sources", "final")}
         media["url"] = "/remote-vae/media/" + receipt["request_id"]
         return {
             "ui": {
@@ -62,6 +60,4 @@ class RemoteVAECombineMedia:
 
 
 NODE_CLASS_MAPPINGS = {"RemoteVAECombineMedia": RemoteVAECombineMedia}
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RemoteVAECombineMedia": "Remote VAE · 영상·음성 결합 (파일)"
-}
+NODE_DISPLAY_NAME_MAPPINGS = {"RemoteVAECombineMedia": "Remote VAE · 영상·음성 결합 (파일)"}

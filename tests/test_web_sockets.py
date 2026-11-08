@@ -20,7 +20,8 @@ class WebSocketsTests(unittest.TestCase):
                                 import "./custom/web/remote_conditioning.js";
                                 import { extension } from "./scripts/app.js";
                                 await extension.addCustomNodeDefs({ RemotePromptEnhancer: {
-                                  name: "RemotePromptEnhancer", input: { required: { profile_id: [["stale"], {}], server_url: ["STRING", { default: "http://127.0.0.1:8188" }] } }
+                                  name: "RemotePromptEnhancer", input: { required: { profile_id: [["stale"], {}],
+                                    server_url: ["STRING", { default: "http://127.0.0.1:8188" }] } }
                                 } });
                                 function Node() {
                                   this.widgets = [
@@ -51,7 +52,8 @@ class WebSocketsTests(unittest.TestCase):
             ),
             app="export let extension; export const app = { registerExtension(value) { extension = value; }, graph: { setDirtyCanvas() {} } };",
             api="export const api = { fetchApi: async () => ({ ok: true, json: async () => ({ profiles: ["
-            "{ id: 'image-only', description: 'Image profile', clip_name: 'a', clip_type: 'krea2', device: 'default', max_length: 256, system_prompt: 'x', accepted_media: ['image'] }"
+            "{ id: 'image-only', description: 'Image profile', clip_name: 'a', clip_type: 'krea2', "
+            "device: 'default', max_length: 256, system_prompt: 'x', accepted_media: ['image'] }"
             "] }) }) };",
         )
 
@@ -251,7 +253,7 @@ class WebSocketsTests(unittest.TestCase):
         )
 
     def test_unknown_or_other_peer_profile_does_not_remove_saved_media_links(self):
-        run_web('''
+        run_web("""
             import assert from "node:assert/strict";
             import { syncPromptMediaInputs } from "./custom/web/remote_sockets.js";
             for (const unknown of [true, false]) {
@@ -265,4 +267,4 @@ class WebSocketsTests(unittest.TestCase):
                 syncPromptMediaInputs(node);
                 assert.deepEqual(node.inputs, inputs);
             }
-        ''')
+        """)

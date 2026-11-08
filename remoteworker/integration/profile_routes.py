@@ -6,12 +6,12 @@ registry merely by changing local UI state.
 """
 
 from __future__ import annotations
-from .. import _native
 
 import asyncio
 from collections.abc import Callable
 from typing import Any
 
+from .. import _native
 from ..prompt.profiles import PromptEnhancerProfileStore, validate_profile_payload
 from ..prompt.transport import PromptComfyApi
 
@@ -24,7 +24,9 @@ def _error(code: str, message: str) -> dict[str, dict[str, str]]:
     return {"error": {"code": code, "message": message}}
 
 
-def _public_profiles(store: PromptEnhancerProfileStore) -> dict[str, list[dict[str, Any]]]:
+def _public_profiles(
+    store: PromptEnhancerProfileStore,
+) -> dict[str, list[dict[str, Any]]]:
     return {"profiles": [profile.as_public_dict() for profile in store.list()]}
 
 
@@ -46,10 +48,12 @@ def create_profiles_handler(
     json_response: Callable[..., Any] | None = None,
 ) -> Callable[[Any], Any]:
     """Create GET/list and POST/upsert-or-delete handler with injectable storage."""
+
     def respond(payload: Any, *, status: int = 200) -> Any:
         if json_response is not None:
             return json_response(payload, status=status)
         from aiohttp import web
+
         return web.json_response(payload, status=status)
 
     async def profiles(request: Any) -> Any:
@@ -83,10 +87,12 @@ def create_profile_options_proxy_handler(
     json_response: Callable[..., Any] | None = None,
 ) -> Callable[[Any], Any]:
     """Expose peer profile descriptions to the caller-hosted frontend without CORS."""
+
     def respond(payload: Any, *, status: int = 200) -> Any:
         if json_response is not None:
             return json_response(payload, status=status)
         from aiohttp import web
+
         return web.json_response(payload, status=status)
 
     async def options(request: Any) -> Any:
@@ -106,19 +112,23 @@ def create_profile_manage_proxy_handler(
     json_response: Callable[..., Any] | None = None,
 ) -> Callable[[Any], Any]:
     """Apply explicit profile CRUD from caller's same-origin management dialog."""
+
     def respond(payload: Any, *, status: int = 200) -> Any:
         if json_response is not None:
             return json_response(payload, status=status)
         from aiohttp import web
+
         return web.json_response(payload, status=status)
 
     async def manage(request: Any) -> Any:
         try:
             payload = await request.json()
-            server_url, timeout_seconds = _validate_proxy_payload({
-                "server_url": payload.get("server_url") if isinstance(payload, dict) else None,
-                "timeout_seconds": payload.get("timeout_seconds") if isinstance(payload, dict) else None,
-            })
+            server_url, timeout_seconds = _validate_proxy_payload(
+                {
+                    "server_url": payload.get("server_url") if isinstance(payload, dict) else None,
+                    "timeout_seconds": payload.get("timeout_seconds") if isinstance(payload, dict) else None,
+                }
+            )
             action = _native.profile_action(payload, proxy=True)
             api = api_factory(server_url, timeout_seconds)
             if action == "upsert":
@@ -149,8 +159,6 @@ def register_routes(prompt_server: Any | None = None) -> bool:
     prompt_server.instance.routes.post(PROFILE_OPTIONS_PROXY_ROUTE_PATH)(create_profile_options_proxy_handler())
     prompt_server.instance.routes.post(PROFILE_MANAGE_PROXY_ROUTE_PATH)(create_profile_manage_proxy_handler())
     return True
-
-
 
 
 __all__ = [

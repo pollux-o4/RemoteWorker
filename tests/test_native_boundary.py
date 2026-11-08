@@ -1,7 +1,8 @@
 """Adversarial checks across the Python/native trust boundary."""
-from pathlib import Path
+
 import tempfile
 import unittest
+from pathlib import Path
 
 from remoteworker import _native
 from remoteworker.core.result_cache import ByteResultCache
@@ -13,7 +14,10 @@ class NativeBoundaryTests(unittest.TestCase):
         for value in (True, False, 5.0, "5", None):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 _native.proxy_config({"server_url": "http://peer", "timeout_seconds": value})
-        self.assertEqual(_native.proxy_config({"server_url": "http://peer", "timeout_seconds": 5}), ("http://peer", 5))
+        self.assertEqual(
+            _native.proxy_config({"server_url": "http://peer", "timeout_seconds": 5}),
+            ("http://peer", 5),
+        )
 
     def test_scoped_cleanup_preserves_symlink_destinations(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -51,6 +55,14 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertTrue(_native.__file__.endswith(".so"))
 
     def test_upload_rejects_header_injection_and_nonbytes(self):
-        for filename, data, mime in (("../x", b"x", "image/png"), ("x", b"x", "image/png\r\nX: bad"), ("x", bytearray(b"x"), "image/png"), ("x", b"", "image/png")):
-            with self.subTest(filename=filename, mime=mime), self.assertRaises(ValueError):
+        for filename, data, mime in (
+            ("../x", b"x", "image/png"),
+            ("x", b"x", "image/png\r\nX: bad"),
+            ("x", bytearray(b"x"), "image/png"),
+            ("x", b"", "image/png"),
+        ):
+            with (
+                self.subTest(filename=filename, mime=mime),
+                self.assertRaises(ValueError),
+            ):
                 _native.validate_upload("req1", filename, data, mime, 1024)

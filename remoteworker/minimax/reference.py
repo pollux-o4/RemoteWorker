@@ -2,40 +2,22 @@
 
 from __future__ import annotations
 
+import uuid as uuid
+from typing import Any
+
 # Rust runtime callback exports.
 from ..core.artifacts import REMOTE_CONDITIONING_ARTIFACT
-
-CONDITIONING_ARTIFACT = REMOTE_CONDITIONING_ARTIFACT
-from .common import LATENT_ARTIFACT as LATENT_ARTIFACT
-import uuid as uuid
 from ..core.execution import (
     RequestInputs as RequestInputs,
+)
+from ..core.execution import (
     completed_artifacts as completed_artifacts,
 )
 from ..core.media import encode_image_frame_png as encode_image_frame_png
-from ..core.transport import HttpComfyApi as HttpComfyApi
-from .common import (
-    decode_remote_outputs as decode_remote_outputs,
-    get_cached_minimax_outputs as get_cached_minimax_outputs,
-    put_cached_minimax_outputs as put_cached_minimax_outputs,
-    resolve_vae_name as resolve_vae_name,
-    validate_cache_policy as validate_cache_policy,
-    validate_peer_inputs as validate_peer_inputs,
-    validate_release_cleanup_capability as validate_release_cleanup_capability,
-)
-from .media import (
-    _ordered_images as _ordered_images,
-    _ordered_audio as _ordered_audio,
-    encode_audio_wav as encode_audio_wav,
-)
-from .reference_workflow import build_workflow as build_workflow
-
-from ..preparation.capabilities import Preparation
-
-from typing import Any
-
 from ..core.protocol import DEFAULT_CACHE_POLICY, ClipSelection
+from ..core.transport import HttpComfyApi as HttpComfyApi
 from ..defaults import DEFAULT_SERVER_URL
+from ..preparation.capabilities import Preparation
 from .common import (
     DEFAULT_PEER_MEMORY_POLICY,
     MINIMAX_AUDIO_VAE_CHOICES,
@@ -44,11 +26,45 @@ from .common import (
     validate_minimax_loader_inputs,
     validate_peer_memory_policy,
 )
+from .common import LATENT_ARTIFACT as LATENT_ARTIFACT
+from .common import (
+    decode_remote_outputs as decode_remote_outputs,
+)
+from .common import (
+    get_cached_minimax_outputs as get_cached_minimax_outputs,
+)
+from .common import (
+    put_cached_minimax_outputs as put_cached_minimax_outputs,
+)
+from .common import (
+    resolve_vae_name as resolve_vae_name,
+)
+from .common import (
+    validate_cache_policy as validate_cache_policy,
+)
+from .common import (
+    validate_peer_inputs as validate_peer_inputs,
+)
+from .common import (
+    validate_release_cleanup_capability as validate_release_cleanup_capability,
+)
 from .media import (
     DynamicReferenceAndVaeInputs,
     _audio_fingerprint,
     _image_batch_fingerprint,
 )
+from .media import (
+    _ordered_audio as _ordered_audio,
+)
+from .media import (
+    _ordered_images as _ordered_images,
+)
+from .media import (
+    encode_audio_wav as encode_audio_wav,
+)
+from .reference_workflow import build_workflow as build_workflow
+
+CONDITIONING_ARTIFACT = REMOTE_CONDITIONING_ARTIFACT
 
 
 def _reference_cache_key(
@@ -116,8 +132,9 @@ def execute(
     deserialize: Any,
     peer_memory_policy: str = DEFAULT_PEER_MEMORY_POLICY,
 ) -> tuple[Any, Any]:
-    from .._native import encoder_execute_native
     import sys
+
+    from .._native import encoder_execute_native
 
     return encoder_execute_native("minimax-reference", sys.modules[__name__], locals())
 
@@ -186,9 +203,7 @@ class RemoteMiniMaxH3ReferenceEncode:
         )
 
     @classmethod
-    def IS_CHANGED(
-        cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any
-    ) -> float:
+    def IS_CHANGED(cls, cache_policy: str = DEFAULT_CACHE_POLICY, **_kwargs: Any) -> float:
         from .._native import cache_fingerprint_native
 
         return cache_fingerprint_native(cache_policy, "Remote MiniMax H3")
@@ -213,13 +228,12 @@ class RemoteMiniMaxH3ReferenceEncode:
         extra_pnginfo=None,
         **media,
     ):
-        from .._native import encoder_run_native
         import sys
+
+        from .._native import encoder_run_native
 
         return encoder_run_native("minimax-reference", sys.modules[__name__], locals())
 
 
 NODE_CLASS_MAPPINGS = {"RemoteMiniMaxH3ReferenceEncode": RemoteMiniMaxH3ReferenceEncode}
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RemoteMiniMaxH3ReferenceEncode": "Remote MiniMax H3 Reference Encode"
-}
+NODE_DISPLAY_NAME_MAPPINGS = {"RemoteMiniMaxH3ReferenceEncode": "Remote MiniMax H3 Reference Encode"}

@@ -384,9 +384,7 @@ class PromptEnhancerRouteTests(unittest.IsolatedAsyncioTestCase):
                 ]
 
         handler = routes.create_profile_options_proxy_handler(FakeApi, profile_FakeResponse)
-        response = await handler(
-            profile_FakeRequest("POST", {"server_url": "http://127.0.0.1:8188", "timeout_seconds": 5})
-        )
+        response = await handler(profile_FakeRequest("POST", {"server_url": "http://127.0.0.1:8188", "timeout_seconds": 5}))
         self.assertEqual(200, response.status)
         self.assertEqual("Fast profile.", response.payload["profiles"][0]["description"])
 

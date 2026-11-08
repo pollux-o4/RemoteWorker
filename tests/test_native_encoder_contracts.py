@@ -1,17 +1,17 @@
 """Rust boundary contracts for encoder plans and profile policy."""
 
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
+from pathlib import Path
 
 from remoteworker import _native
 from remoteworker.core.protocol import ClipSelection
+from remoteworker.prompt.profiles import DEFAULT_PROFILE, validate_profile_payload
 from remoteworker.qwen.service import build_workflow
-from remoteworker.prompt.profiles import validate_profile_payload, DEFAULT_PROFILE
 
 
 class NativeEncoderContracts(unittest.TestCase):

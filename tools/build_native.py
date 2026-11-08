@@ -1,14 +1,15 @@
 """Build and atomically install the native module into this checkout."""
+
 from __future__ import annotations
 
 import argparse
 import fcntl
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 
 def build(*, release: bool = True) -> Path:
@@ -21,7 +22,12 @@ def build(*, release: bool = True) -> Path:
         command = [cargo, "build", "--locked", "--features", "extension-module"]
         if release:
             command.append("--release")
-        subprocess.run(command, cwd=root, env={**os.environ, "PYO3_PYTHON": sys.executable}, check=True)
+        subprocess.run(
+            command,
+            cwd=root,
+            env={**os.environ, "PYO3_PYTHON": sys.executable},
+            check=True,
+        )
         source = target / ("release" if release else "debug") / "lib_native.so"
         destination = root / "remoteworker" / "_native.abi3.so"
         descriptor, temporary = tempfile.mkstemp(prefix=".native-", suffix=".so", dir=destination.parent)
@@ -33,7 +39,15 @@ def build(*, release: bool = True) -> Path:
             os.replace(temporary, destination)
         finally:
             Path(temporary).unlink(missing_ok=True)
-        subprocess.run([sys.executable, "-c", "from remoteworker import _native; assert _native.ARCHITECTURE == 'modular-monolith'"], cwd=root, check=True)
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from remoteworker import _native; assert _native.ARCHITECTURE == 'modular-monolith'",
+            ],
+            cwd=root,
+            check=True,
+        )
     return destination
 
 

@@ -11,7 +11,6 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .. import _native
-
 from .protocol import (
     _parse_env_positive_int,
     _validate_server_url,
@@ -78,6 +77,7 @@ class HttpComfyApi:
 
     def submit(self, workflow: dict[str, Any]) -> str:
         from .cancellation import check_cancelled
+
         check_cancelled()
         response = self._json("/prompt", payload={"prompt": workflow, "client_id": uuid.uuid4().hex})
         return _native.prompt_response(response)
@@ -93,7 +93,11 @@ class HttpComfyApi:
             self._request("/interrupt", data=json.dumps({"prompt_id": prompt_id}).encode("utf-8"))
             self._request("/queue", data=json.dumps({"delete": [prompt_id]}).encode("utf-8"))
             return
-        _native.boolean_response(response, "cancelled", "Remote Conditioning prompt cancel returned an invalid response")
+        _native.boolean_response(
+            response,
+            "cancelled",
+            "Remote Conditioning prompt cancel returned an invalid response",
+        )
 
     def clip_loader_options(self) -> dict[str, list[str]]:
         """Return the peer's validated CLIPLoader choices."""
@@ -134,12 +138,17 @@ class HttpComfyApi:
 
     def discard_inputs(self, request_id: str) -> bool:
         response = self._json("/remote-conditioning/discard-inputs", payload={"request_id": request_id})
-        return _native.boolean_response(response, "removed", "Remote Conditioning discard-inputs returned an invalid response")
+        return _native.boolean_response(
+            response,
+            "removed",
+            "Remote Conditioning discard-inputs returned an invalid response",
+        )
 
     def wait_for_history(self, prompt_id: str) -> dict[str, Any]:
         deadline = time.monotonic() + self._timeout_seconds
         while time.monotonic() < deadline:
             from .cancellation import check_cancelled
+
             check_cancelled()
             _raise_if_caller_interrupted()
             history = self._json(f"/history/{prompt_id}")
@@ -150,7 +159,11 @@ class HttpComfyApi:
 
     def discard_vae_outputs(self, request_id: str) -> bool:
         response = self._json("/remote-vae/discard-output", payload={"request_id": request_id})
-        return _native.boolean_response(response, "removed", "Remote VAE discard-output returned an invalid response")
+        return _native.boolean_response(
+            response,
+            "removed",
+            "Remote VAE discard-output returned an invalid response",
+        )
 
     def download_artifact(self, artifact: str) -> bytes:
         return self._request(_native.download_query(artifact))
@@ -159,6 +172,7 @@ class HttpComfyApi:
 def _raise_if_caller_interrupted() -> None:
     """Use ComfyUI's cancellation signal when running inside its executor."""
     from .cancellation import caller_interrupt_enabled
+
     if not caller_interrupt_enabled():
         return
     try:

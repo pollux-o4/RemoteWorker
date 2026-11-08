@@ -24,6 +24,7 @@ def cancellation_scope(check, *, caller_interrupt=True):
 
 def check_cancelled():
     from .._native import check_cancelled_native
+
     check_cancelled_native(_check.get(), RequestCancelled)
 
 

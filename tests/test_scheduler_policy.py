@@ -2,6 +2,7 @@
 
 import unittest
 from types import SimpleNamespace
+
 from remoteworker.preparation.policy import Admission
 from remoteworker.preparation.progress import SamplingProgress
 
@@ -9,17 +10,13 @@ from remoteworker.preparation.progress import SamplingProgress
 class SchedulingPolicyTests(unittest.TestCase):
     def test_three_remaining_steps_keep_clip_window(self):
         self.assertEqual(
-            Admission()
-            .decide(remaining_steps=3, needs_clip=False, reserved=False)
-            .reason,
+            Admission().decide(remaining_steps=3, needs_clip=False, reserved=False).reason,
             "clip_window",
         )
 
     def test_two_remaining_steps_start_vae(self):
         self.assertEqual(
-            Admission()
-            .decide(remaining_steps=2, needs_clip=False, reserved=False)
-            .action,
+            Admission().decide(remaining_steps=2, needs_clip=False, reserved=False).action,
             "warmup",
         )
 
@@ -30,23 +27,17 @@ class SchedulingPolicyTests(unittest.TestCase):
 
     def test_unknown_progress_never_starts_vae_early(self):
         self.assertEqual(
-            Admission()
-            .decide(remaining_steps=None, needs_clip=False, reserved=False)
-            .action,
+            Admission().decide(remaining_steps=None, needs_clip=False, reserved=False).action,
             "wait",
         )
         self.assertEqual(
-            Admission()
-            .decide(remaining_steps=None, needs_clip=True, reserved=False)
-            .action,
+            Admission().decide(remaining_steps=None, needs_clip=True, reserved=False).action,
             "prefetch",
         )
 
     def test_reserved_vae_is_reused_when_no_clip_is_missing(self):
         self.assertEqual(
-            Admission()
-            .decide(remaining_steps=1, needs_clip=False, reserved=True)
-            .reason,
+            Admission().decide(remaining_steps=1, needs_clip=False, reserved=True).reason,
             "vae_ready",
         )
 
@@ -62,7 +53,9 @@ class SchedulingPolicyTests(unittest.TestCase):
         c.reset()
         self.assertEqual(c.detail("A"), {})
 
-    def test_native_progress_accepts_integral_float_counts_and_ignores_placeholders(self):
+    def test_native_progress_accepts_integral_float_counts_and_ignores_placeholders(
+        self,
+    ):
         c = SamplingProgress()
         c.update("A", "sample", 0.0, 1.0)
         self.assertEqual(c.detail("A"), {})
@@ -70,9 +63,16 @@ class SchedulingPolicyTests(unittest.TestCase):
         self.assertEqual(c.detail("A"), {"step": 1, "total": 1})
         c.update("B", "sample", 5.0, 128.0)
         self.assertEqual(c.detail("B"), {"step": 5, "total": 128})
-        for value, total in ((0.5, 1.0), (1, 128.5), (float("nan"), 128),
-                             (1, float("inf")), (None, 128), ("ready", 128),
-                             (True, 128), (2**64, 2**64)):
+        for value, total in (
+            (0.5, 1.0),
+            (1, 128.5),
+            (float("nan"), 128),
+            (1, float("inf")),
+            (None, 128),
+            ("ready", 128),
+            (True, 128),
+            (2**64, 2**64),
+        ):
             c.update("invalid", "sample", value, total)
             self.assertEqual(c.detail("B"), {"step": 5, "total": 128})
             self.assertEqual(c.detail("invalid"), {})
@@ -80,15 +80,22 @@ class SchedulingPolicyTests(unittest.TestCase):
     def test_float_progress_event_preserves_native_send_and_reconciliation(self):
         from threading import Event
         from unittest.mock import patch
+
         from remoteworker.preparation.events import EventBridge
         from remoteworker.preparation.scheduler import Scheduler
+
         calls = []
-        registry = SimpleNamespace(prompt_id="A", dynprompt=SimpleNamespace(
-            get_node=lambda key: {"class_type": "SamplerCustomAdvanced"}))
+        registry = SimpleNamespace(
+            prompt_id="A",
+            dynprompt=SimpleNamespace(get_node=lambda key: {"class_type": "SamplerCustomAdvanced"}),
+        )
         owner = SimpleNamespace(wake=Event(), scheduler=Scheduler())
         server = SimpleNamespace(send_sync=lambda *args: calls.append(args))
         bridge = EventBridge(server, owner)
-        data = {"prompt_id": "A", "nodes": {"sample": {"state": "running", "value": 0.0, "max": 1.0}}}
+        data = {
+            "prompt_id": "A",
+            "nodes": {"sample": {"state": "running", "value": 0.0, "max": 1.0}},
+        }
         with patch("remoteworker.preparation.events._progress_registry", return_value=registry):
             server.send_sync("progress_state", data, "client-A")
             self.assertEqual(owner.scheduler.sampling.detail("A"), {})
@@ -108,6 +115,7 @@ class SchedulingPolicyTests(unittest.TestCase):
 
     def test_event_adapter_preserves_native_routing(self):
         from threading import Event
+
         from remoteworker.preparation.events import EventBridge
 
         calls = []
@@ -120,6 +128,7 @@ class SchedulingPolicyTests(unittest.TestCase):
 
     def test_binary_preview_keeps_native_delivery_without_string_observer_error(self):
         from threading import Event
+
         from remoteworker.preparation.events import EventBridge
 
         calls = []
@@ -167,9 +176,7 @@ class SchedulingPolicyTests(unittest.TestCase):
         server = SimpleNamespace(
             port=8188,
             last_node_id="sample",
-            prompt_queue=SimpleNamespace(
-                get_current_queue=lambda: (self.running, self.pending)
-            ),
+            prompt_queue=SimpleNamespace(get_current_queue=lambda: (self.running, self.pending)),
         )
         scheduler = Scheduler()
         scheduler.sampling.update("A", "sample", 128 - steps, 128)
@@ -227,21 +234,19 @@ class SchedulingPolicyTests(unittest.TestCase):
         token = (
             "B",
             "clip",
-            __import__(
-                "remoteworker.preparation.plan", fromlist=["fingerprint"]
-            ).fingerprint(self.following["clip"]),
+            __import__("remoteworker.preparation.plan", fromlist=["fingerprint"]).fingerprint(self.following["clip"]),
         )
         c.done.append(token)
         self.assertFalse(c.next_clip_missing("A", "http://step-peer"))
 
     def test_handoff_budget_rejects_before_serialization(self):
         from unittest.mock import patch
+
         import torch
+
         from remoteworker.preparation.handoff import pack
 
-        with patch.object(
-            torch, "save", side_effect=AssertionError("oversized tensor serialized")
-        ):
+        with patch.object(torch, "save", side_effect=AssertionError("oversized tensor serialized")):
             self.assertIsNone(pack((torch.zeros(1024),), max_bytes=64))
         self.assertIsInstance(pack((torch.zeros(4),), max_bytes=4096), bytes)
 
@@ -279,6 +284,7 @@ class SchedulingPolicyTests(unittest.TestCase):
 
     def test_gate_wait_is_cancellable_without_releasing_another_owner(self):
         import threading
+
         from remoteworker.preparation.gates import PeerGate
 
         g = PeerGate()
@@ -311,17 +317,16 @@ class SchedulingPolicyTests(unittest.TestCase):
 
     def test_background_scope_does_not_consume_foreground_interrupt(self):
         import sys
-        from unittest.mock import patch, Mock
+        from unittest.mock import Mock, patch
+
         from remoteworker.core.cancellation import (
-            cancellation_scope,
             caller_interrupt_enabled,
+            cancellation_scope,
         )
         from remoteworker.core.transport import _raise_if_caller_interrupted
 
         model = SimpleNamespace(throw_exception_if_processing_interrupted=Mock())
-        with patch.dict(
-            sys.modules, {"comfy": SimpleNamespace(model_management=model)}
-        ):
+        with patch.dict(sys.modules, {"comfy": SimpleNamespace(model_management=model)}):
             with cancellation_scope(lambda: False, caller_interrupt=False):
                 _raise_if_caller_interrupted()
                 self.assertFalse(caller_interrupt_enabled())
