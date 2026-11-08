@@ -21,5 +21,5 @@ flowchart TB
 | 항목 | 제약 |
 | --- | --- |
 | `.cond`·`.latent` | PyTorch 직렬화; 신뢰하는 생성 런타임의 파일만 로드 |
-| conditioning 호환 | 인코더 의미 체계·소비 노드·ComfyUI/PyTorch 조합; 파일 내부 호환성 메타데이터·자동 판별 없음 |
+| conditioning 호환 | 인코더 의미 체계·소비 노드·ComfyUI/PyTorch 조합 일치 필요 |
 | `server_url` | HTTP(S) origin; 경로·query·fragment·인증정보 제외 |

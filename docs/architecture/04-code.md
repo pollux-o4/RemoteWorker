@@ -41,7 +41,7 @@
 | --- | --- |
 | 역할 발견 | [capabilities.py](../../remoteworker/preparation/capabilities.py) |
 | 준비 조정 | [coordinator.py](../../remoteworker/preparation/coordinator.py) |
-| Comfy 이벤트 관찰 | [events.py](../../remoteworker/preparation/events.py) · `EventBridge.observe`: 문자열 상태만 native 전달·정수형 미리보기의 원래 전송/클라이언트 라우팅 보존 |
+| Comfy 이벤트 관찰 | [events.py](../../remoteworker/preparation/events.py) · `EventBridge` |
 | native worker 연결 | [host.py](../../remoteworker/pipeline/host.py) |
 | 실행 슬롯 | [slots.py](../../remoteworker/pipeline/slots.py) |
 | MODEL/LoRA 재사용 | [reuse.py](../../remoteworker/pipeline/reuse.py) |
@@ -78,4 +78,4 @@
 
 ## 다른 저장소
 
-- [GenRel C4](../../../../docs/아키텍처/04-code.md)
+- GenRel C4: GenRel `docs/아키텍처/04-code.md`

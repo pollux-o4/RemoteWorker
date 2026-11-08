@@ -7,12 +7,12 @@
 | `RemoteVAEDecode`·`RemoteVAEDecodeAudio` | 원격 디코딩 → IMAGE/AUDIO 반환 · 최종 미디어 인코딩 없음 |
 | `output_mode=tensor` | HTTP latent 업로드·디코딩 텐서 다운로드 · 512 MiB 전송 한도 |
 | `output_mode=shared` | 공유 `temp/<ID>/latent.pt` → peer `decoded.pt`·`decoded-receipt.json` → 호출 측 CPU 텐서 읽기 |
-| 공통 출력 | 0번 IMAGE/AUDIO 활성 · 기존 1번 STRING 소켓 호환 유지·비활성 |
+| 공통 출력 | 0번 IMAGE/AUDIO 활성 · 1번 STRING 소켓 비활성 |
 | 미리보기·최종 저장 | 후속 노드 소유 · 이미지 배치·RGBA·오디오 파형·sample_rate 보존 |
 | 전송 완료 | peer cleanup 포함 성공·receipt/설정/파일 크기 대조·텐서 형식 검증·취소 확인 → latent·decoded·receipt 삭제 |
 | 전송 실패 | 입력·완료된 decoded 텐서 보존 · 오류의 작업 ID로 재시도 · 디코딩 완료 결과 재사용 |
 | 경로·용량 | 공유 절대 root·작업별 잠금·원자 발행 · HTTP 직렬화 한도 제외·CPU RAM 사용 유지 |
-| 고급 입력 호환 | 기존 FPS·CRF·오디오 VAE 입력 위치 유지·통합 디코더에서 숨김·실행에 미사용 |
+| 고급 입력 | FPS·CRF·오디오 VAE 입력은 통합 디코더에서 미사용 |
 | worker·caller | `vae/shared_tensor.py::SharedVAETensorWorker`·`execute`·`consume` |
 | 공개 미디어 라우트 | 전달용 `.pt` 비노출 · 기존 최종 미디어 receipt만 조회 |
 
@@ -22,7 +22,7 @@
 
 ## 명시적 파일 저장 노드
 
-- 아래 MP4/WAV 발행 계약: `RemoteVAEVideo` 전용 · 통합 디코더의 전달 방식과 분리
+- MP4/WAV 발행 계약: `RemoteVAEVideo` 전용
 
 ## C2 · 실행·저장 구조
 
@@ -101,7 +101,7 @@ flowchart TB
 
 - 신규 노드 기본 `shared` · 기존 저장 그래프·옵션 생략 API 기본값 호환
 - `VALIDATE_INPUTS`: `SharedVAETensorWorker`·모델·공유 접근 검사 · 샘플러 실행 이전 실패
-- `web/vae_delivery.js`: 전달 방식·공유 연결 상태·수신 완료 표시 · 자체 미디어 미리보기 제거
+- `web/vae_delivery.js`: 전달 방식·공유 연결 상태·수신 완료 표시
 - `POST /remote-vae/preflight` → `POST /remote-vae/shared/check`
 - `GET /remote-vae/media/{request_id}`: 명시적 파일 저장 결과의 검증된 경로·Range 응답
 

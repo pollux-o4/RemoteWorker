@@ -28,7 +28,5 @@
 - GPU 실행 무결성: 모델별 native 결과 비교·오디오·영상·타일·원격 파이프라인
 
 - 공유 파일 writer: 검증된 디렉터리·임시 파일 FD 고정 · pathname 변경과 분리 · subprocess 출력 형식 명시
-
-- 공유 디스크 권한: 호출·peer 동일 Unix UID · 요청 디렉터리 0700·파일 0600 · 다른 UID 간 전송은 HTTP tensor 모드
-
+- 공유 디스크 권한·접근 계약: [shared-video](shared-video.md)
 - 종료 중 진행 HTTP: 현재 socket 요청 반환·설정 timeout 이후 협력 취소 · native worker를 버린 채 interpreter 최종화 금지
