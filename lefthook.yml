@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    ruff-check:
+      run: ruff check .
+    ruff-format:
+      run: ruff format --check .
+    cargo-fmt:
+      run: cargo fmt --check
+    cargo-clippy:
+      run: cargo clippy --all-targets --all-features --locked -- -D warnings

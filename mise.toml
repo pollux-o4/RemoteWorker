@@ -1,0 +1,29 @@
+[tools]
+python = "3.13.16"
+rust = "1.99.1"
+ruff = "0.17.3"
+lefthook = "2.2.2"
+
+[tasks.check]
+description = "Python·Rust 정적 품질 검사"
+run = [
+  "ruff check .",
+  "ruff format --check .",
+  "cargo fmt --check",
+  "cargo clippy --all-targets --all-features --locked -- -D warnings",
+]
+
+[tasks."remoteworker:test"]
+description = "RemoteWorker Python 계약 테스트"
+run = "python -m unittest discover -s tests -q"
+
+[tasks.test]
+description = "Python·Rust 테스트"
+run = [
+  "cargo test --all-features --locked",
+  "mise run remoteworker:test",
+]
+
+[tasks.verify]
+description = "정적 검사와 Python·Rust 테스트"
+depends = ["check", "test"]
