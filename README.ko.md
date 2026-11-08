@@ -2,9 +2,8 @@
 
 # RemoteWorker
 
-ComfyUI 런타임 사이에서 conditioning을 전달하고, 다른 ComfyUI 인스턴스에 인코딩이나 프롬프트 생성을 맡기는 커스텀 노드 모음입니다.
-
-원격 런타임(peer)이 인코더나 프롬프트 모델을 실행합니다. 호출 측은 conditioning, latent 데이터 또는 텍스트를 받아 자신의 워크플로를 이어서 실행합니다. 샘플링은 호출 측 담당. 선택적 원격 VAE 디코딩으로 샘플링 latent를 peer에 전달, IMAGE·AUDIO 반환.
+ComfyUI 런타임 간 conditioning 전달 및 원격 인코딩·프롬프트 생성·VAE 디코딩 커스텀 노드 모음.
+원격 peer가 인코더·프롬프트 모델·선택적 VAE 디코딩을 수행하고, 호출 측은 conditioning·latent·텍스트를 수신해 샘플링 등 후속 워크플로 진행.
 
 ## 노드
 
@@ -17,49 +16,53 @@ flowchart TB
 
 | 노드 | 기능 / 출력 |
 | --- | --- |
-| Save Conditioning / Load Conditioning | CPU `.cond` 파일을 저장하고 다른 런타임에서 읽습니다. 로드 시 업로드·드래그 앤 드롭·붙여넣기를 지원합니다. |
-| Remote Conditioning | 원격 CLIP 인코딩을 실행하고 `CONDITIONING`을 반환합니다. |
-| Remote MiniMax H3 Reference Encode | 이미지·영상·오디오 참조를 인코딩하고 `CONDITIONING`, `LATENT`를 반환합니다. |
-| Remote MiniMax H3 Image to Video | 텍스트와 선택적 첫·마지막 프레임을 인코딩하고 `CONDITIONING`, `LATENT`를 반환합니다. |
-| Remote Prompt Enhancer | 원격에서 관리하는 프로필과 선택적 이미지·영상 참조로 프롬프트를 생성하고 `STRING`을 반환합니다. |
-| Remote Qwen Image 2.1 | 원격 텍스트·참조 이미지·VAE 인코딩을 실행하고 positive conditioning, negative conditioning, latent 데이터를 반환합니다. |
-| Remote VAE Decode / Audio | peer 디코딩, CPU IMAGE·AUDIO 무손실 반환 |
-| Remote VAE Warmup | 최소 더미 디코딩 예약, 완료 ticket·입력 passthrough 반환 |
-| Remote VAE Selector | 연결된 원격 노드에서 사용할 VAE 이름을 선택합니다. |
+| Save Conditioning / Load Conditioning | CPU `.cond` 파일 저장 및 타 런타임 로드 (업로드·드래그 앤 드롭·붙여넣기 지원) |
+| Remote Conditioning | 원격 CLIP 인코딩 실행 → `CONDITIONING` 반환 |
+| Remote MiniMax H3 Reference Encode | 이미지·영상·오디오 참조 인코딩 → `CONDITIONING`, `LATENT` 반환 |
+| Remote MiniMax H3 Image to Video | 텍스트 및 선택적 시작/끝 프레임 인코딩 → `CONDITIONING`, `LATENT` 반환 |
+| Remote Prompt Enhancer | 원격 관리 프로필·선택적 미디어 참조 기반 프롬프트 생성 → `STRING` 반환 |
+| Remote Qwen Image 2.1 | 원격 텍스트·참조 이미지·VAE 인코딩 → positive/negative conditioning, latent 반환 |
+| Remote VAE Decode / Audio | peer 디코딩 → CPU IMAGE·AUDIO 무손실 반환 |
+| Remote VAE Warmup | 최소 더미 디코딩 예약 → 완료 ticket 및 입력 passthrough 반환 |
+| Remote VAE Selector | 연결된 원격 노드용 VAE 모델명 선택 |
 
-원격 워크플로에 사용하는 artifact 저장 노드와 내부 Qwen worker도 함께 등록합니다.
+- artifact 저장 노드 및 내부 Qwen worker 자동 등록.
 
 ## 설치
 
-설치한 ComfyUI의 Python 환경과 의존성을 사용합니다.
+ComfyUI Python 환경 및 의존성 사용.
 
 ```sh
 cd /path/to/ComfyUI/custom_nodes
 git clone https://github.com/pollux-o4/RemoteWorker.git
 ```
 
-설치 후 ComfyUI를 재시작합니다. 원격 실행에는 호출 측과 peer 양쪽에 RemoteWorker가 필요합니다. peer에는 선택한 어댑터가 요구하는 모델 파일과 호환 노드도 설치되어 있어야 합니다. RemoteWorker가 이를 내려받지는 않습니다.
+- 설치 후 ComfyUI 재시작 필수.
+- 호출 측과 peer 양쪽에 RemoteWorker 설치 필요.
+- peer에는 어댑터 요구 모델 및 호환 노드 선행 설치 필요 (RemoteWorker 자동 다운로드 미제공).
 
 ## 사용법
 
 ### Conditioning 파일 전달
 
-1. 생성 측 런타임에서 인코더를 **Save Conditioning**에 연결합니다.
-2. 만들어진 `.cond` 파일을 소비 측 런타임의 `input/`으로 옮기거나 **Load Conditioning**에서 업로드합니다.
-3. **Load Conditioning**을 소비 측 워크플로에 연결합니다.
+1. 생성 측: 인코더를 **Save Conditioning**에 연결.
+2. 전달: 생성된 `.cond` 파일을 소비 측 `input/`으로 복사 또는 **Load Conditioning**에 업로드.
+3. 소비 측: **Load Conditioning**을 후속 워크플로에 연결.
 
-양쪽의 텍스트 인코더와 conditioning 소비 규약이 호환되어야 합니다. `.cond`와 `.latent`는 PyTorch 직렬화를 사용하므로 신뢰하는 런타임의 파일만 읽으세요.
+보안·호환성:
+- 양측 텍스트 인코더 및 conditioning 소비 규약 일치 필수.
+- `.cond`·`.latent`는 PyTorch 직렬화 사용: 신뢰하는 런타임 파일만 로드.
 
 ### 원격 어댑터 사용
 
-1. 필요한 모델과 노드를 설치한 peer ComfyUI 인스턴스를 실행합니다.
-2. 호출 측 워크플로에 원격 어댑터를 추가하고 `server_url`에 peer의 HTTP(S) origin을 입력합니다.
-3. 모델·프로필 목록 새로고침을 지원하는 노드에서는 목록을 갱신하고, 필요한 옵션을 선택한 뒤 입력을 연결합니다.
-4. 반환된 conditioning, latent 데이터 또는 텍스트를 호출 측의 후속 워크플로에 연결합니다.
+1. peer 실행: 모델·노드가 설치된 ComfyUI 기동.
+2. 호출 측 설정: 워크플로에 원격 어댑터 배치, `server_url`에 peer HTTP(S) origin 입력.
+3. 목록 갱신: 모델·프로필 새로고침 후 옵션 선택 및 입력 연결.
+4. 결과 연계: 반환된 conditioning, latent, text를 후속 노드에 연결.
 
-주소는 `http://127.0.0.1:8188`처럼 경로·query·fragment·인증정보가 없는 origin으로 입력합니다. 실제 peer 주소에 맞게 설정하세요. peer 주소를 바꾼 뒤에는 모델·프로필 목록을 새로고침합니다.
-
-RemoteWorker는 ComfyUI에 인증이나 암호화를 추가하지 않습니다. 신뢰하는 네트워크나 별도로 보호한 연결을 사용하세요.
+보안·네트워크:
+- 주소 형식: 경로·query·fragment·인증정보 없는 HTTP(S) origin 입력 (`http://127.0.0.1:8188`) · peer 주소 변경 후 모델·프로필 목록 새로고침 필수.
+- 보안 경계: RemoteWorker는 ComfyUI에 추가 인증이나 암호화를 제공하지 않음 · 신뢰 네트워크 또는 별도 보호 터널 사용 필수.
 
 ## 문서
 
@@ -68,15 +71,14 @@ RemoteWorker는 ComfyUI에 인증이나 암호화를 추가하지 않습니다. 
 
 ## 개발과 검증
 
-`main`은 통합 브랜치이며 `user`에는 검증된 변경을 반영합니다. 모음 저장소는 `user`를 추적합니다.
-
-ComfyUI Python 환경에서 테스트를 실행합니다. JavaScript 계약 테스트에는 Node.js가 필요합니다.
+- 브랜치 모델: `main` 통합 브랜치, `user` 검증 반영 브랜치 (모음 저장소는 `user` 추적).
+- 테스트 실행: ComfyUI Python 환경 필요 (JS 계약 테스트는 Node.js 필요).
 
 ```sh
 REMOTEWORKER_CONFIG="" python -m unittest discover -s tests -q
 ```
 
-Qwen V3 네이티브 스키마 검사는 `PYTHONPATH`에 ComfyUI가 있어야 실행되며, 없으면 건너뜁니다.
+- Qwen V3 네이티브 스키마 검사 (`PYTHONPATH` ComfyUI 필요, 부재 시 자동 스킵):
 
 ```sh
 REMOTEWORKER_CONFIG="" PYTHONPATH=/path/to/ComfyUI:. python -m unittest discover -s tests -p test_remote_qwen_image21.py -q
@@ -90,7 +92,7 @@ REMOTEWORKER_CONFIG="" PYTHONPATH=/path/to/ComfyUI:. python -m unittest discover
 
 ### 공유 파일로 영상 저장
 
-양쪽 서버에 동일한 절대 경로의 `REMOTEWORKER_SHARED_VAE_DIR`를 설정합니다. GenRel에서는 `<GenRel>/shared/remote-vae`를 자동으로 사용합니다.
+양측 서버에 동일한 절대 경로 `REMOTEWORKER_SHARED_VAE_DIR` 설정 (GenRel 기본: `<GenRel>/shared/remote-vae`).
 
 `샘플러 → 공유 VAE latent 저장 → 원격 VAE 영상 저장 · 공유 파일`
 

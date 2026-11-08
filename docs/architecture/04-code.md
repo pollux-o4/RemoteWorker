@@ -11,10 +11,13 @@
 | 요청 수명주기 | [request.rs](../../rust/src/request.rs) |
 | byte 캐시·일회 handoff | [cache.rs](../../rust/src/cache.rs) |
 | 모델별 workflow · 조건 저장 `SaveRemoteConditioning` · UI 필드 `conditioning` | [workflows.rs](../../rust/src/workflows.rs) |
+| 인코더 정책 세부 | `encoder_policy/validation.rs` · `media.rs` · `vae.rs` · `cache.rs` · `peer_io.rs` · `preparation.rs` |
+| 인코더 실행 세부 | `encoder_runtime/common.rs` · `qwen.rs` · `prompt.rs` · `conditioning.rs` · `minimax.rs` |
 | 인코더 정책·실행 | [encoder_policy.rs](../../rust/src/encoder_policy.rs) · [encoder_runtime.rs](../../rust/src/encoder_runtime.rs) |
 | 프로필 | [profiles.rs](../../rust/src/profiles.rs) |
 | 큐 그래프 | [graph.rs](../../rust/src/graph.rs) |
 | 준비 admission·관측 | [preparation.rs](../../rust/src/preparation.rs) |
+| 실행 정책 세부 | `execution/gate.rs` · `slots.rs` · `resolver.rs` · `cache.rs` · `handoff.rs` · `preparation.rs` |
 | gate·슬롯·해석·재사용 | [execution.rs](../../rust/src/execution.rs) |
 | Comfy host 정책 | [host.rs](../../rust/src/execution/host.rs) |
 | 준비 조정·행동 | [coordinator.rs](../../rust/src/execution/coordinator.rs) · [actions.rs](../../rust/src/execution/actions.rs) |

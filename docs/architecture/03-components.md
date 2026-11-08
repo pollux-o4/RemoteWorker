@@ -30,6 +30,7 @@ flowchart TB
 - 검증된 ID·정책·미디어 종류·슬롯 단계의 Rust 타입 소유 · 외부 입력의 런타임 검증 후 구성
 - Python 예외의 FFI 전달 · 실패 시 해당 prompt 취소 · 업로드 성공분의 요청별 정리
 - 공유 파일 원자 발행·검증: [shared-video](../contracts/shared-video.md)
+- Rust 공개 FFI 등록은 `encoder_policy`·`encoder_runtime`·`execution`의 facade가 소유. 내부는 입력 정책·peer IO, 모델별 실행, gate·슬롯·해석·handoff·재사용으로 분리.
 - native 바이너리 필수
 - 이벤트 adapter: 원래 Comfy 전송 선행·문자열 상태의 native 관찰·binary 미리보기 분리 · [C4](04-code.md#준비파이프라인)
 - 프로세스 종료 수명주기: [pipeline](../contracts/pipeline.md) · [native-runtime](../contracts/native-runtime.md)
