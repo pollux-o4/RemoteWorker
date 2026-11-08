@@ -13,6 +13,10 @@ run = [
   "cargo clippy --all-targets --all-features --locked -- -D warnings",
 ]
 
+[tasks."hooks:install"]
+description = "Git pre-commit 훅 설치"
+run = "lefthook install"
+
 [tasks."remoteworker:test"]
 description = "RemoteWorker Python 계약 테스트"
 run = "python -m unittest discover -s tests -q"
